@@ -1,0 +1,234 @@
+
+exFAT
+Init Infotm ION driver v2014.02.08
+
+
+公司腾讯企业邮箱。微信客户端绑定密码 : ooErfMAnogvZeWtL
+
+date -d "$(awk -F. '{print $1}' /proc/uptime) second ago" +"%Y-%m-%d %H:%M:%S"
+cd /home/yuan/work/qsdkdoc/psdocs
+python -m SimpleHTTPServer 8080
+
+git clone https://github.com/dosfstools/dosfstools.git
+
+~/work/ipc_dev/products/qipc_38f/configs
+~/work/ipc_dev/output/product/configs   #当前product的拷贝
+
+product目录的介绍：　  ./configs目录
+
+1. 提高启动阶段CPU频率从516提升到696，启动时间减少80ms左右
+2.
+sudo apt-get install build-essential libncurses5-dev bison flex texinfo zlib1g-dev gettext libssl-dev autoconf wget
+Ubuntu默认的shell是dash，它跟buildroot的脚本有些不兼容。可以用下面的命令切换到bash：
+$sudo dpkg-reconfigure dash
+修改之后，仍然需要同步之后才能用mdwiki来访问．
+
+sed是linux平台或UNIX的流编辑器，可以利用管道对标准输入的数据进行编辑或组合。
+    一般用来实现替换或批量数据添加
+    grep用来做字串查询，通常和其它程序一起搭配使用，相当于数据过滤
+
+需要修改密码的项目：　qq 微信　支付宝　工商银行　招商银行　印象笔记　网易邮箱和云　百度云百度账号　
+需要管理的支付密码：　工商银行　招商银行　微信红包　
+
+static void imapx_audio_buffdone(void *data) 函数，应该可以直接把audio帧转发给fr的
+     timestamp = now.tv_sec * 1000 + now.tv_nsec / 1000000;　应该优化处理，可以使用delta的来计算，应该会减少开销。
+
+数据传输失败，应该需要先发送cmd12来停止传输，改变状态到transfer state。
+4.3.10 再次开始。
+Once selected, via the switch command, all functions only
+return to the default function after a power cycle, CMD6 (Mode 1 operation with Function 0 in each
+function group) or CMD0. Executing a power cycle or issuing CMD0 will cause the card to reset to the
+"idle" state and all the functions to switch back to the default function.
+---->是否代表，切换失败就必须重新初始化。
+As a response to CMD6, the SD Memory Card will send R1 response on the CMD line and 512 bits of
+status on the DAT lines. From the SD bus transaction point of view, this is a standard single block read
+transaction and the time out value of this command is 100 ms, the same as in read command. If CRC
+error occurs on the status data, the host should issue a power cycle.
+---->是否代表，之前遇到的crc问题，需要启动一个新的power cycle.
+In response to CMD0, the switching period is within 8 clocks after the end bit of CMD0.
+---->需要保证足够的延时。
+
+Setting a number of write blocks to be pre-erased (ACMD23) will make a following Multiple Block Write
+operation faster compared to the same operation without preceding ACMD23.
+---->不知道能否真的加速。如果可以，可以在系统资源不紧张的时候进行，或者，这本身并不会消耗资源。这将会减轻dma的负担，从而改善系统其他如音频和视频的性能。
+
+什么是power cycle.
+
+上电之后，所有卡在idle state, 包括之前进入inactive state的卡。非inactive state的卡，CMD0将之切换到idle state.
+After the host issues a reset command (CMD0) to reset the card, the host shall issue CMD8 prior to
+ACMD41 to re-initialize the SD Memory card.
+
+SD_SEND_OP_COND (ACMD41)是application specific command;前面必须有APP_CMD (CMD55)，携带参数RCA = 0x0000.
+
+Host needs to issue CMD12 if any error is detected in the CMD18 and CMD25 operations. 数据传输出错需要发送cmd12
+HOST Status Register(0x48), Command FSM states: 应该可以在出错的时候读出来，看看当前状态；看看是否有其他register值得研究。
+
+4.6.2 Read, Write and Erase Timeout Conditions
+A card shall complete the command within the time period defined as follows or give up and return an
+error message. If the host does not get any response with the given timeout it should assume that the
+card is not going to respond and try to recover (e.g. reset the card, power cycle, reject, etc.).
+Power cycle means the　power is turned off and supplied again.
+
+mmc0流程
+     init_mmc();
+     mmc_init_param(0);
+     不需要初始化mmc0的卡
+
+EMMC0部分，尽量保持原有代码，不要有变化。
+vs_assign_by_id
+     init_config_item　　　　DEV_IUS　　DEV_FLASH　　　DEV_SNND，　　DEV_MMC(0)　另外的方式
+     get_offset_ius　：：　irf->vs_assign_by_id(DEV_MMC(1), 1);
+     init_config_item
+
+emmc_init(boot_dev_id);　１次使用。
+     init_config_item
+irf->vs_assign_by_id(DEV_MMC(1), 1); 两次使用。
+     get_offset_ius
+     init_config_item
+mmc_read
+flash_init
+flash_read
+
+如何配置和使用，相关trace信息。
+
+~~~prod_name:ASTC~~serial:8372,manfid:18,oemid:22136~~
+~~~prod_name:SL08G~~serial:-513004852,manfid:3,oemid:21316~~
+
+保存，上一张故障卡的基本信息，可以考虑cid信息，如果之前有过错误，那么新的卡就需要比较一下cid信息，相同就使用单线模式，不同就使用4线模式。
+
+system_update_upgrade()函数中，屏蔽后面几个image，节省调试时间。
+dd if=/dev/zero of=/dev/spiblock0 bs=1M count=1
+dd if=/dev/zero of=/dev/mmcblk0 skip=16M bs=1M count=1
+
+mmc_test:  先umount指定路径，判断指定路径是否有效，然后重新mount, mount失败直接退出程序
+
+如果传输由于crc而失败，上层应该发送stop命令，然后再次重传。
+Each token is protected by CRC bits so that transmission errors can be detected and the　operation may be repeated.
+
+mmc_wait_for_data_req_done
+     本函数wait_event_interruptible等待dw_mmc回调函数返回，但是卡死。
+          mmc_wait_data_done
+               __mmc_start_data_req　　　　中设置mrq->done = mmc_wait_data_done;
+
+打印查　mmc_wait_for_cmd　函数　发送数据　retry 次数。
+
+host->detect
+     mmc_detect_change
+     mmc_detect_card_removed
+          mmc_blk_cmd_recovery
+               mmc_blk_err_check :: host->areq->err_check
+                    mmc_wait_for_data_req_done
+     mmc_rescan
+     mmc_stop_host
+          mmc_remove_host
+     mmc_suspend_host
+     mmc_pm_notify
+     mmc_alloc_host
+
+INIT_DELAYED_WORK(&host->detect, mmc_rescan);
+mmc_schedule_delayed_work(&host->detect, 0);
+
+//当前线程结束立刻执行一次host->detect: mmc_rescan()
+
+好像是轮训而非dma和中断方式发送消息。
+static void mci_send_cmd(struct dw_mci_slot *slot, u32 cmd, u32 arg)
+
+if(strstr(argv[0], "mmc_test") && (strlen(partition) > 0)){
+     用来确定是evb而不是pc平台。
+
+！！！！！！！！！！！！明天，能否增加设定任何测试开始时间，测试结束时间呢？！！！！！！！！！！！！
+购书：　　Linux C 函数库参考手册  bms测试平台
+
+mmc_test性能测试启动，缺省启动loadtest线程就好。
+把之前的fat32部分测试，全部添加到新的版本，准备上传。
+
+SYSTEM_STATISTIC_INFO    cpu_info_start, cpu_info_end;
+     loading_record_cpustat(&cpu_info_start);
+     loading_record_cpustat(&cpu_info_end);
+     loading_show_cpustat(&cpu_info_start, &cpu_info_end);
+
+单文件写　对比性能测试，目标是期望发现，启动da对性能没有明显消极影响。
+     无da情况下前两个文件iowait的波动，应该和mount有关系
+测试条件：　２线程写入２文件，每个控制在１ｍ，写入1024ｍ，统计cpu占用情况。
+多文件写　对比性能测试, 最高速度不需要测试，　但是需要弄清楚，同样4m速度，cpu资源占用上有什么差别。
+     比较使用延迟分配前后，比较占用cpu资源差别。
+     比较写入速度差别
+     两个文件同时写入，无须测试更多文件写入。
+
+125ms 写入８次，每次６４，　１２８　，只要改变block的大小，就可以获得整数的码率改变。
+
+可定制的top信息打印。
+非常长时间的资源统计。
+指定开始时间和结束时间。支持多个进程。支持多个线程的信息打印。
+
+
+snd_pcm部分的缓冲区，上限是可以设定的，再问问看，怎么设定。
+
+data_list_head　　event_register_table event_name_list[MAX_EVENT]
+怎么就没有见到什么地方是删除info信息的，会不会占用内存越来越多呢？
+
+一个时间片没有执行完毕，自己又强行让出资源，这个机制有点问题。这样，MediaMuxer　的线程，实际执行效率一般。
+我感觉，ThreadingState MediaMuxer::WorkingThreadTask(void ) 不应该3.3ms执行一次，只要有数据，就应该立刻执行；或者，新的视频帧到来，一次保存所有的音频帧。
+     如果音频部分有累积的数据，一次性的读取出来，而不是读取一个frame休息一下。视频也是一样的，不要每次从一个流读取一个ｆｒａｍｅ，然后就切换。
+使用abctrl, 录音编码解码播放正常
+
+ALSA也运行以mmap模式打开一个PCM信道，这允许有效的零拷贝(zero copy)方式访问声音数据。这是怎么工作的？查询看看。
+
+建议做下面修改，会否这才是卡顿问题的真正原因呢：
+rc = snd_pcm_writei(handle, buffer, frames);//写入声卡 （放音）
+if (rc == -EPIPE)
+{
+     /* EPIPE means underrun */
+     fprintf(stderr, "underrun occurred\n");
+     snd_pcm_prepare(handle);
+}
+
+video部分重要模块:　isp(sensor相关) ipost(sensor相关) jenc(图片编码硬件) venc(视频编码硬件)
+
+比如,同一个回写request,他们相关的信息应该是组织在一起打印的,所以需要使用定义同一个sequnce_num的方法.
+如果关心函数调用层次,如何打印信息?每个关心的函数,定义hash数组,将每次LR寄存器中的内容保存下来并且统计调用次数,最好,能找到函数名
+某些关心的变量的取值到底是什么规律.
+如何知道函数调用层次
+能否在动态运行过程中建立函数调用模型.
+统计中断个数
+使用合适的方式来统计和打印一些关键信息,现在需要定义int的全局变量,然后++,然后再格式化打印,需要3个地方修改代码,实在是烦透了,最好能够在一行代码中注册搞定.
+测试程序，从串口读取控制命令，每个字符对应一个不同的配置。
+定义一个大的打印缓冲区,输出信息扔到里面,buffer满或者指定时间到就直接打印
+创建一个线程，做简单运算，统计次数，看看中断次数对它的影响。
+增加调试手段，增加ｔｒａｃｅ信息打印：
+     静态数据分析
+          由于经常出现文件系统不一致问题，增加格式化功能。
+          读取和解析ｓｄ卡指定区域内容，引导扇区，目录项，文件簇链表
+          解析文件簇链表，文件写入之后，对其做性能分析。
+     动态数据打印: 用于分析文件系统流程ｔｒａｃｅ
+          文件写入过程中，打印簇号等信息，辅助性能分析，做代码优化之前先弄清楚系统是如何运作的。
+如何得到上层函数的名称和指针等信息?或者编译器,
+记录某个函数被每个上层调用多少次,就足以知道一些关键信息了.
+
+##
+eventhub每次创建新的消息队列时，检查之前的老消息队列，销毁进程已经不存在的消息队列。
+ipcs -q　获取消息队列表，然后根据key，进入队列，从队列中查询，从队列中删除。
+还是使用现有的机制。　最多支持多少个队列呢？
+
+如果真的出现pid和预定义的消息队列key相同，那么就需要修改现有的机制了。
+
+添加新的，和删除老的，都应该在eventd中进行。只有被eventd登记过的消息队列，才会被清理。
+或者，只有和eventd联系过的消息队列，才会被管理。
+
+保存一个上次销毁时间，保证两次之间不会小于5s，避免大量的删除。
+
+!!!  System Load和Kernel Profiling模块也是基于tick的，用于计算系统负荷和进行内核性能剖析  !!!
+衡量cpu开销的方式,如果中间没有线程切换: 1.高精度的时间计算 2.tick个数 3.idle线程执行时间,计算然后主动调度礼让CPU.
+
+
+所有的技术和论坛，都是用　ericyun110322    ，密码　为　中学　１　３　３　应该不会需要用大写的情况，而且也够长。１１个字符刚好。
+无所谓的普通的信息和公司密码，爱家，快捷方便为主啊
+印象笔记非常重要的个人笔记， 活期通, 微信，支付宝，银行等相关的
+
+性能测试 功能测试 trace体系 问题 一体的
+建立一个完整的体系的问题
+开发时考虑到, 并且长期积累trace
+解决bug, 举一反三, 相类似的情况下, 添加trace信息
+重要的模块, 重要的流程, 本身就应该是可追踪的; 比如cpu 内存 中断 dma等重要的系统资源
+包括coredump snap性质的, 重要的全局变量等.
+重现问题相关, 以前mspd完整流程所有可能输入信息, 重超1G的调试信息.

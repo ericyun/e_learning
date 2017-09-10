@@ -1,0 +1,1237 @@
+2017-02-20
+vim+ctags+cscope
+Tools->install package control
+
+一些小的碎片化的信息，在每个有用条目前面添加可能的搜索关键字，以后通过搜索获取信息，而不是通过文件夹和文件来区分。
+!!!!!!零散笔记最好不要用day one或evernote，将来整理会累死，还是用 momento 这样的!!!!!!
+
+static struct fat_cache nohit = { .fcluster = 0, };
+
+每个代码块中只有一个主函数，后面的页函数都是被主函数调用的。用红色和更大的字体来表示，页函数不会很多。如果页函数层次也很深怎么办。把主要的部分拉出来。
+笔记的关键在于如何把所有的东西串起来，笔记主要是体现细节，并且描述数据结构，不要奢望它能完成所有工作。整体架构应该使用流程图和其他图。
+代码块标题用１４粗体深绿色，解析页函数用１４粗体深蓝/红等色，通过颜色匹配看的稍微直观一点。
+
+linux内核源码解析应该包括三个部分：
+１．迫切需要定义一个数据流图struct buffer_head *bhs[]-->bio-->request->mmc_request，
+２．一个管理数据结构图。
+３．函数解析，进行中
+４．软件架构图
+
+
+trace中，应该定义一个宏，可以直接显示函数行号时间信息，可以定义前缀后缀字符如＠＃￥以及个数，
+关键字：　公司产品相关 BU1相关
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+09.04~09.08 周1~5
+09.04~09.06 audio部分驱动
+--------------------------------------------------------------------------------
+08.29~09.01 周2~5
+08.29：上午1/4_bit_line kernel和uboot修正，下午看audiobox需求文档，同时做auto delayline测试；由于tf卡延长线太粗，撑坏了Q3f板子的卡槽，导致识别失败浪费时间
+08.30：上午修改和验证和提交rm#4901的apollo版本；然后整理之前mmc_test的程序，验证和测试rm#5367的问题
+08.31：进程退出时audiobox释放它可能释放的channel,解决rm#5460
+09.01：上午提交rm#5460修正，下午阅读hisi音频文档，开始看sound部分的驱动。
+--------------------------------------------------------------------------------
+使用MDwiki预览编写的文档：
+cd ~/work/qsdkdoc/psdocs
+python -m SimpleHTTPServer 8080
+http://127.0.0.1:8080/#!qsdk/books/pg-videobox/main_audiobox.md
+--------------------------------------------------------------------------------
+员清观
+年龄：　　　　40
+职位：　　　　资深软件开发工程师
+政治面貌：　无
+工作单位：　上海盈方微电子股份有限公司
+工作地址：　上海市浦东新区张江高科技园区祖冲之路2290弄展想广场1号16层
+电话：　　　　18616715815
+--------------------------------------------------------------------------------
+08.14~08.18 周1
+周1 牙种植手术，之后３天特别经常头晕，估计和消炎药以及甲硝唑有关；
+周二上午，调试sd卡4-1线切换的问题，有初步的进展，下午开始详细了解和验证audiobox部分的功能
+周三周会上催促audiobox的文档进度，看来无法细致学习了，开始写audiobox文档；周４全天文档
+周五
+--------------------------------------------------------------------------------
+08.11 周5
+本周主要调试uboot相关的部分的内容。遇到了不少问题。详细见RM#4826
+最好和work目录平级建立一个新的orig目录，运行不同EVB只要烧录就好了，最多更新一下程序，更加方便一些。这个目录的内容不应该做任何修改，或者修改之后立刻恢复。
+--------------------------------------------------------------------------------
+08.03 周4
+handler_init  中创建handler_ID对应的mq
+     handler_msg_queue_create
+          handler_key = getpid();
+          handler_ID = msgget(handler_key, IPC_EXCL | IPC_CREAT | 0777);
+int provider_init(void)
+     provider_msg_queue_create(eventd_pid);
+
+int eventd_serv_init()  中创建(关联)３个mq
+     eventd_handler_key = eventd_provider_key = getpid();
+     eventd_handler_ID = eventd_handler_msg_queue_create(getpid());
+     eventd_provider_ID = eventd_provider_msg_queue_create(getpid());
+     provider_ID = provider_msg_queue_create(getpid());
+
+1.eventd_handler_ID
+     eventd_handler_msg_queue_create   ／／创建
+     Send_Handler_Register_Event
+          event_register_handler &&&  event_unregister_handler //应用
+     Read_Handler_Register_Event
+          register_thread_fun　          //eventd
+2.eventd_provider_ID
+     eventd_provider_msg_queue_create   ／／创建
+     Read_Provider_Register_Event       ／／没用到
+     Send_Provider_Register_Event       ／／没用到
+3.provider_ID
+     provider_msg_queue_create          ／／创建
+     Read_Data_Event_From_Provider
+          rec_data_thread_fun
+               register_thread_fun　//eventhub进程中创建的线程。
+     Send_Data_Event_To_Eventd     ／／发送event请求到eventd
+          event_send　　&&&  event_rpc_call
+4. handler_ID
+     handler_msg_queue_create          ／／创建
+          handler_init
+               event_register_handler，　进程注册event的时候调用和创建。
+     Read_Handler_Register_Return  //专门读取　Send_Handler_Register_Event　注册注销返回信息
+          event_register_handler
+          event_unregister_handler
+               ／／应用进程调用
+
+Read_Return_From_Handler
+
+--------------------------------------------------------------------------------
+08.02 周3
+dd if=/dev/zero of=/dev/spiblock0 bs=1M count=1
+--------------------------------------------------------------------------------
+07.21 周5 jack.ye
+git rebase -i dev_qsdk
+git commit --amend -m "RM#NONE: add SD/MMC card speed test program"
+git branch new-feature dev_qsdk  基于dev_qsdk建立新的branch开发新功能
+新的branch上,可以自由的commit,不需要特别注意注释
+git branch merge-feature new-feature   开发完成后,基于建立新的merge用的branch
+git checkout merge-feature
+git rebase -i dev_qsdk        fixup保留commit而丢弃不需要的comment
+repo init -u ssh://eric.yun@gerrit.in.infotm.com:29418/manifest/buildroot -b dev_qsdk_dv
+repo sync -c
+repo start --all dev_qsdk_dv
+repo forall -c "git checkout tag_before_merge_2.2.0"
+
+make linux-menuconfig
+     device drvier
+           Infotm special files and drivers
+InfoTM power detect driver support
+if (!strncmp(provider_data.event.name, EVENT_PROCESS_END, strlen(EVENT_PROCESS_END))){
+			int	*p_pid = (int*)provider_data.event.buf;
+			//printf("~~~~~~~~"~~%s.....%d....name:%s for:%d, %s\n", __FUNCTION__, __LINE__, provider_data.event.name, *p_pid, p_pid+1);
+			int msg_id = msgget(*p_pid, 0);
+			if(msg_id > 0)
+				msgctl(msg_id, IPC_RMID, NULL);
+
+			return;
+		}
+--------------------------------------------------------------------------------
+07.20 周4
+修改pr_detect.c之后，videobox初始化出现错误，出现３色图像，clean后重新编译
+运行出现frlib ver:10, fr driver ver:11错误,没办法，重新编译tf360.　基本步骤：make clean; make menuconfig 手动使能libswcale，如果make过程中失败后才使能，那么需要重新clean.
+编译出错find: ‘output/product/items.itm.tmp’: No such file or directory，直接cp items.itm items.itm.tmp
+configure: error: Package requirements (libswresample >= 1.0.0) were not met:     手动使能libswresample
+cannot find -lqmediautils　　使能qlibmediautils(和qlibffmpeg同级)，并使能前两个子配置。
+--------------------------------------------------------------------------------
+07.19 周3
+aac adts length
+return ((buf[3] & 0x3) << 11) | (buf[4] << 3) | (buf[5] >> 5);
+1. make menuconfig-->Qsdk options->Apps->common event provider
+2. 初始化脚本中launcher &前添加: cepd &
+3. 然后还是没有进程关闭的打印，cep中增加打印，发现socket没有收到信息；pr_detect.c中，init_module增加打印确认已经增加进来。然后，发现pr_detect原有的replace_func功能异常，阅读内核代码之后删除这个函数。替换代码：
+4.
+void my_profile_task_exit(struct notifier_block *self, unsigned long val, void *data){
+	struct process_info info;
+	if(strcmp(current->comm, "mdev")) {
+		info.pid = current->pid;
+		strncpy(info.name, current->comm, strlen(current->comm)+1);
+		nl_sendmsg(nl_sk, &info);
+	}
+}
+static struct notifier_block my_task_exit_nb = {
+	.notifier_call = my_profile_task_exit,
+};
+static int _init_module(void ) {
+	struct netlink_kernel_cfg cfg = {
+		.groups = 1,
+		.input = NULL,
+	};
+	profile_event_register(PROFILE_TASK_EXIT, &my_task_exit_nb);
+	nl_sk = netlink_kernel_create(&init_net, NETLINK_USER, &cfg);
+	if (!nl_sk) {
+		printk(KERN_ALERT "Error creating socket.\n");
+		return -1;
+	}
+	return 0;
+}
+static void _cleanup_module(void)
+{
+	netlink_kernel_release(nl_sk);
+}
+--------------------------------------------------------------------------------
+07.18 周2
+vb_ctrl测试脚本
+#!/bin/sh
+mkdir /mnt/sd0/
+r=0
+i=0
+times=100000
+while [ $i -le $times ]
+do
+        videoboxd &
+        sleep 2
+        vbctrl cam -c isp --snapcapture=one
+        sleep 1
+        vbctrl stop
+        sleep 1
+    let "i++"
+done
+--------------------------------------------------------------------------------
+07.17 周1 audiobox优先级相关代码测试验证
+--------------------------------------------------------------------------------
+07.14 周5/6 音频相关代码学习
+--------------------------------------------------------------------------------
+07.13 周4 音频编码 音频解码 dsp
+make linux-menuconfig :
+device drvier
+	infotm special files and drivers
+		infotm q3f series support
+			q3f dsp driver support
+				ceva tl421 dsp
+					encoder decoder aec
+device drvier   //pr_detect
+	infotm special files and drivers
+--------------------------------------------------------------------------------
+07.12 周3 解决#3941，开始跟踪#4496，
+初步分析卡顿原因：录像时采样率48000,每个帧1024个采样，所以每秒产生大概47个音频帧．但是播放时，统计发现每秒发送不到３０个音频帧到audiobox，这导致underrun，产生卡顿．所以应该是qplayer帧控制产生的问题．
+继续跟踪代码．
+定时关机　shutdown -h +30
+--------------------------------------------------------------------------------
+07.11 周2
+修改burn.ixl，调整了几个image的顺序之后，调试uboot1就不需要强制先烧录kernel.
+#name q3evb burn.ixl, for make ius
+#images:
+i run 0x08000200 0x08000000 ../../output/images/uboot0.isi
+r flash 0x0	 				../../output/images/uboot0.isi
+r flash 0x1	 				../../output/images/items.itm
+r flash 0x10	 			../../output/images/uboot1.isi
+#r flash 0x2	 			../../output/images/ramdisk.img
+#r flash 0x3  	 			../../output/images/uImage
+#r flash 0x4  				uImage
+#r flash 0x5  				../../output/images/rootfs.squashfs
+
+	int	pcounter = 0;
+	static int	print_counter = 6;
+	int total_size = fr.size;
+
+	if(print_counter < 6){
+		printf("frame(size:%d): \n", fr.size);
+		for(pcounter = 0;pcounter<fr.size;pcounter++){
+			printf("%x,", ptr[pcounter]);
+			if(pcounter && (((pcounter+1)%16)==0)){
+				printf("\n");
+			}
+		}
+		printf("\n");
+	}
+	char*	tmp_fr_ptr = NULL;
+	while(total_size > 0){
+		tmp_fr_ptr = (char*)fr.virt_addr;
+		fr.size = aac_get_frame_len(tmp_fr_ptr);
+		if(fr.size < 0){
+			printf("frame decapsulate failed!\n");
+			break;
+		}
+		if( this->PFrFifo->PushItem(&fr) < 0 ){
+        	LOGGER_ERR("push audio error\n");
+    	}
+
+		total_size -= fr.size;
+		tmp_fr_ptr += fr.size;
+		fr.virt_addr = (void*)tmp_fr_ptr;
+
+		if(print_counter < 6)
+			printf("fr.size : %d\n", fr.size);
+		if(total_size < 0){
+			LOGGER_ERR("frame length error!\n");
+		}
+	}
+    print_counter++;
+
+------------------------------------------------------------------------------
+07.10 周1 最新v1.9的dv代码，重现aac解码4002错误．
+dｍｅｓｇ显示ｋｅｒｎｅｌ打印(简化掉了正常的sdio命令)：
+mmc_host mmc0: Bus speed (slot 0) = 39600000Hz (slot req 39600000Hz, actual 39600000HZ div = 0)
+mmc0: new high speed SDHC card at address 1234
+mmcblk0: mmc0:1234 SA32G 29.3 GiB
+[sdio]-send cmd -18,arg-0x00000000,cmdr-0x20002352
+data error 2000
+imap-mmc1 imap-mmc1.1: data FIFO error (status=00002000)
+mmcblk0: error -5 transferring data, sector 0, nr 8, cmd response 0x900, card status 0xb00
+mmcblk0: retrying using single block read
+[sdio]-send cmd -17,arg-0x00000000,cmdr-0x20002351
+data error 2000
+sd卡初始化流程正常，cmd　18读取MBR失败，然后cmd 17读取MBR同样失败，都是data error 2000，这对应　Masked Start-bit error interrupt，表示接收start bit失败，看起来好像时序问题．
+附完整初始化命令序列打印, 不支持cmd52/8/5，但sandisk class 10同样不支持，应该不影响正常初始化：
+[sdio]-send cmd -52,arg-0x00000c00,cmdr-0x2000a174
+cmd error 100
+[sdio]-send cmd -52,arg-0x80000c08,cmdr-0x20002174
+cmd error 100
+[sdio]-send cmd -0,arg-0x00000000,cmdr-0x20002000
+[sdio]-send cmd -8,arg-0x000001aa,cmdr-0x20002148
+[sdio]-send cmd -5,arg-0x00000000,cmdr-0x20002045
+cmd error 100
+[sdio]-send cmd -5,arg-0x00000000,cmdr-0x20002045
+cmd error 100
+[sdio]-send cmd -5,arg-0x00000000,cmdr-0x20002045
+cmd error 100
+[sdio]-send cmd -5,arg-0x00000000,cmdr-0x20002045
+cmd error 100
+[sdio]-send cmd -55,arg-0x00000000,cmdr-0x20002177
+[sdio]-send cmd -41,arg-0x00000000,cmdr-0x20002069
+--------------------------------[sdio]-send cmd -0,arg-0x00000000,cmdr-0x20002000		MMC_CMD_GO_IDLE_STATE
+--------------------------------[sdio]-send cmd -8,arg-0x000001aa,cmdr-0x20002148		MMC_CMD_SEND_EXT_CSD
+[sdio]-send cmd -55,arg-0x00000000,cmdr-0x20002177
+[sdio]-send cmd -41,arg-0x40300000,cmdr-0x20002069		ACMD41 电压检测和判断
+[sdio]-send cmd -55,arg-0x00000000,cmdr-0x20002177
+[sdio]-send cmd -41,arg-0x40300000,cmdr-0x20002069
+[sdio]-send cmd -55,arg-0x00000000,cmdr-0x20002177
+[sdio]-send cmd -41,arg-0x40300000,cmdr-0x20002069
+[sdio]-send cmd -55,arg-0x00000000,cmdr-0x20002177
+[sdio]-send cmd -41,arg-0x40300000,cmdr-0x20002069
+[sdio]-send cmd -55,arg-0x00000000,cmdr-0x20002177
+[sdio]-send cmd -41,arg-0x40300000,cmdr-0x20002069
+[sdio]-send cmd -55,arg-0x00000000,cmdr-0x20002177
+[sdio]-send cmd -41,arg-0x40300000,cmdr-0x20002069
+[sdio]-send cmd -55,arg-0x00000000,cmdr-0x20002177
+[sdio]-send cmd -41,arg-0x40300000,cmdr-0x20002069
+[sdio]-send cmd -55,arg-0x00000000,cmdr-0x20002177
+[sdio]-send cmd -41,arg-0x40300000,cmdr-0x20002069
+[sdio]-send cmd -55,arg-0x00000000,cmdr-0x20002177
+[sdio]-send cmd -41,arg-0x40300000,cmdr-0x20002069
+[sdio]-send cmd -55,arg-0x00000000,cmdr-0x20002177
+[sdio]-send cmd -41,arg-0x40300000,cmdr-0x20002069
+[sdio]-send cmd -55,arg-0x00000000,cmdr-0x20002177
+[sdio]-send cmd -41,arg-0x40300000,cmdr-0x20002069
+[sdio]-send cmd -55,arg-0x00000000,cmdr-0x20002177
+[sdio]-send cmd -41,arg-0x40300000,cmdr-0x20002069
+[sdio]-send cmd -55,arg-0x00000000,cmdr-0x20002177
+[sdio]-send cmd -41,arg-0x40300000,cmdr-0x20002069
+[sdio]-send cmd -55,arg-0x00000000,cmdr-0x20002177
+[sdio]-send cmd -41,arg-0x40300000,cmdr-0x20002069
+[sdio]-send cmd -55,arg-0x00000000,cmdr-0x20002177
+[sdio]-send cmd -41,arg-0x40300000,cmdr-0x20002069
+[sdio]-send cmd -55,arg-0x00000000,cmdr-0x20002177
+[sdio]-send cmd -41,arg-0x40300000,cmdr-0x20002069		sd卡返回busy
+[sdio]-send cmd -55,arg-0x00000000,cmdr-0x20002177
+[sdio]-send cmd -41,arg-0x40300000,cmdr-0x20002069
+[sdio]-send cmd -55,arg-0x00000000,cmdr-0x20002177
+[sdio]-send cmd -41,arg-0x40300000,cmdr-0x20002069
+[sdio]-send cmd -55,arg-0x00000000,cmdr-0x20002177
+[sdio]-send cmd -41,arg-0x40300000,cmdr-0x20002069		sd卡返回ready
+--------------------------------[sdio]-send cmd -2,arg-0x00000000,cmdr-0x200021c2
+--------------------------------[sdio]-send cmd -3,arg-0x00000000,cmdr-0x20002143
+[sdio]-send cmd -9,arg-0x12340000,cmdr-0x200021c9			MMC_CMD_SEND_CSD
+[sdio]-send cmd -7,arg-0x12340000,cmdr-0x20002147			MMC_CMD_SELECT_CARD
+[sdio]-send cmd -55,arg-0x12340000,cmdr-0x20002177		MMC_CMD_APP_CMD
+[sdio]-send cmd -51,arg-0x00000000,cmdr-0x20002373
+[sdio]-send cmd -55,arg-0x12340000,cmdr-0x20002177
+[sdio]-send cmd -13,arg-0x00000000,cmdr-0x2000234d		MMC_CMD_SEND_STATUS,　capability信息。
+--------------------------------[sdio]-send cmd -6,arg-0x00fffff0,cmdr-0x20002346		MMC_CMD_SWITCH
+--------------------------------[sdio]-send cmd -6,arg-0x80fffff1,cmdr-0x20002346		MMC_CMD_SWITCH
+[sdio]-send cmd -55,arg-0x12340000,cmdr-0x20002177
+--------------------------------[sdio]-send cmd -6,arg-0x00000002,cmdr-0x20002146		MMC_CMD_SWITCH
+[sdio]-send cmd -18,arg-0x00000000,cmdr-0x20002352
+data error 2000
+[sdio]-send cmd -12,arg-0x00000000,cmdr-0x2000414c
+[sdio]-send cmd -13,arg-0x12340000,cmdr-0x2000214d
+[sdio]-send cmd -17,arg-0x00000000,cmdr-0x20002351
+data error 2000
+--------------------------------------------------------------------------------
+07.07 周5 aac编解码基础知识的学习
+--------------------------------------------------------------------------------
+07.06 周4 audiobox完毕，开始aac编解码基础知识的学习．
+--------------------------------------------------------------------------------
+07.05 周3 开始阅读audiobox代码，预估明天能够整理完毕．
+--------------------------------------------------------------------------------
+07.04 周2昨晚失眠，早上7:40到公司．阅读audiobox文档，阅读eventhub部分代码，基本理清其机制．
+--------------------------------------------------------------------------------
+07.03 周1 调整fat32实现，增加struct address_space_operations fat_aops_da，代码逻辑更加清晰．开始阅读audiobox文档
+--------------------------------------------------------------------------------
+07.02 周7 加班，继续调整和测试fat32算法，主要分析mmu_private数据的逆向调用逻辑问题．
+--------------------------------------------------------------------------------
+07.01 周6 上午国际象棋考试，铩羽而归；下午休息，玩
+--------------------------------------------------------------------------------
+06.30 周5 测试mmap,跟中fat_bmap调用，发现没有关系．
+linux kernel中，和tasklet相关的softirq有两项，HI_SOFTIRQ用于高优先级的tasklet，TASKLET_SOFTIRQ用于普通的tasklet
+公司产品相关：
+使用定码率而非变码率，是因为据说重力感应，有速度变化的时候才会录像，但这真的符合应用场景么？
+为何测试和平台之间无法直接通过ｂｕｇ沟通呢？
+报告bug，信息好简单．
+make mrproper　命令会删除所有的编译生成文件、内核配置文件(.config文件)和各种备份文件，所以几乎只在第一次执行内核编译前才用这条命令。
+make clean　命令则是用于删除大多数的编译生成文件，但是会保留内核的配置文件.config，还有足够的编译支持来建立扩展模块。所以你若只想删除前一次编译过程的残留数据，只需执行make clean命令。
+总而言之，make mrproper删除的范围比make clean大，实际上，make mrproper在具体执行时第一步就是调用make clean
+
+BU1相关：
+GUI : MainWindowProc　是消息主要处理接口．
+IPU.cpp             int IPU::Start()
+ThreadCore.cpp      void ThreadCore::EnhancePriority(bool enhance){
+--------------------------------------------------------------------------------
+06.29 周4 测试o_direct，调整fat延迟分配策略机制．
+--------------------------------------------------------------------------------
+06.28 周3 调整fat延迟分配策略机制．
+--------------------------------------------------------------------------------
+06.27 周2 调整fat延迟分配策略机制．
+--------------------------------------------------------------------------------
+06.26 周1 测试计划和测试代码．
+--------------------------------------------------------------------------------
+06.25 周7 加班，优化inode.c中代码，测试
+--------------------------------------------------------------------------------
+06.24 周6 加班，优化inode.c中代码，测试
+--------------------------------------------------------------------------------
+06.23 周5 调整inode.c中代码，增加临界区保护多个page的写入和回写操作．
+lock_page()和unlock_page()，小心两次lock导致死锁
+--------------------------------------------------------------------------------
+06.22 周4 跟踪抓图失败问题, arm_dma_alloc()函数强制在回写线程外回写page,而且顺序是乱序的
+--------------------------------------------------------------------------------
+06.21 周3 跟踪抓图失败问题
+sysserver/spv_utils.c#play_audio()函数，sleep(2)并且禁止audio_put_channel(handle);后抓图正常，
+--------------------------------------------------------------------------------
+06.20 周2 请假，上午新华医院开药，下午家长会．
+--------------------------------------------------------------------------------
+06.19 周1
+--------------------------------------------------------------------------------
+06.16 周5
+write_cache_pages 函数中增加确认page块分配的动作．
+--------------------------------------------------------------------------------
+06.15 周4 昨天下午5:25到今天8:30，１５个小时正常运行．
+今天下班时，记得测试录像卡死问题．
+先给tf360增加串口线，后盖很难开启，小刘给我一个带串口的tf360.
+昨天测试居然使用的不是延迟分配的程序，晕．
+--------------------------------------------------------------------------------
+06.14 周3 trace机制就绪之后，迅速解决page和block不对齐导致的问题．tf360还，新的终端没有串口．
+--------------------------------------------------------------------------------
+06.13 周2 kernel 调试trace打印方式，已经搞定，以后可以用这种方式来搞．
+发现调试内核问题时，打印信息会影响到正常执行，导致逻辑变化．控制测试条件减少打印信息，不方便还仍然偶尔有不一致的行为，导致逻辑分析混乱．所以只好先搞定trace显示方式的问题．
+之前追踪mmc部分流程打印trace的时候，把关键的信息先集中保存在全局变量中，满足条件的时候一次性打印出来．这种延时打印的方式有效但使用不方便．现在想试试通用的方法．
+尝试了几种方式：
+１．延后定时调用dmesg显示内核trace
+　　出错信息过多，printk的ring buffer很容易被overrun而导致关键信息丢失．
+　　增加kernel　trace环形buffer大小，没有看到明显效果，估计错误信息太多，虽然可以手动注释掉部分错误，但不方便而且仍然无法保证信息不丢失，所以放弃；
+２．在mmc_test进程中循环读取/proc/kmsg，过滤掉不关心的trace信息，然后显示的方式．
+　　读取之后立刻显示，结果发现trace丢失；
+　　然后，尝试先写入临时文件缓冲，延后一段时间集中显示临时文件信息，仍然出现trace丢失；　　　
+　　最后，将mmc_test进程设定为实时，并取消isp线程的实时设定，trace信息正常显示．之前问题应该是因为mmc_test进程总是被抢占，无法及时读取kernel trace而导致.
+当前使用第二个方式进行调试，没有发现有什么异常.
+至于videobox audiobox app-launcher 这三个进程的打印，重定向到/dev/null，避免混杂显示的干扰．
+--------------------------------------------------------------------------------
+06.12 周1 重定向问题.
+__mpage_writepage 函数中，对于一个page,之前处理只判断第一个bufhead的blocknr是否-1，如果一个Ｐａｇｅ只有第一个block分配了，那么后面的几个block就会出现逻辑不一致．解决这个问题之后，录像能够持续一段时间，３分钟可以录像２００m左右，结尾处理仍然有问题．
+--------------------------------------------------------------------------------
+06.11 周7  直接回家
+--------------------------------------------------------------------------------
+06.10 周6  syslog和trace信息重定向相关学习
+--------------------------------------------------------------------------------
+06.09 周5 fat32 延时分配策略调试
+--------------------------------------------------------------------------------
+06.08 周4 fat32 延时分配策略调试
+--------------------------------------------------------------------------------
+06.07 周3 fat32 延时分配策略，每次关机太烦拆掉电池，结果短路，修正后继续调试．
+--------------------------------------------------------------------------------
+06.06 周2 fat32 延时分配策略添加，录像直接卡死，调试．主要是尝试添加一些trace信息．printk输出级别错误，浪费了不少时间．
+cat /proc/sys/kernel/printk 4 4 1 7 其中第一个“4”表示内核打印函数printk的打印级
+--------------------------------------------------------------------------------
+06.05 周1 今天应该结束fat32部分阅读工作．继续测试录像卡死问题．
+--------------------------------------------------------------------------------
+06.04 周7
+--------------------------------------------------------------------------------
+06.03 周6 上午拔牙，下午加班，疼的浑身无力早退．
+热插拔sd卡一次，两小时只有没有异常；另外一次录像停止之后，fsck修正之后，正常录像，然后第二天，继续卡死．
+--------------------------------------------------------------------------------
+06.02 周5 下午会议，开始阅读fat部分代码
+--------------------------------------------------------------------------------
+06.01 周4
+同时开启wifi和录像，测试和整理．
+--------------------------------------------------------------------------------
+05.31 周3
+同时开启wifi和录像，spv_launcher.c文件中，int sysserver_proc()函数中SpvMessageLoop(g_launcher_handler);之前增加：
+SendMsgToServer(MSG_CONFIG_CHANGED, (int)GETKEY(ID_SETUP_WIFI_MODE), (long)GETVALUE(STRING_DIRECT), TYPE_FROM_DEVICE);
+最后自己从早期代码中，找到05.08/04.19 王辉代码修改掉, For TF360, when start wifi not record, and change the bitrate.
+--------------------------------------------------------------------------------
+05.27 周6 两天时间栽倒ＴＦ３６０的旧机型上了．
+测试发现ｗｉｆｉ性能很差，资源占用50%以上，高鹏说没见过ｗｉｆｉ性能好过．去掉实时调度之后，问题消失，以为ｗｉｆｉ受实时调度影响比较大．
+
+--------------------------------------------------------------------------------
+05.26 周5
+fat相关的改动, 在g_dev_qsdk目录.
+关于系统进程调度的问题分析.
+由于中间穿插了一些其他任务, 加上初期自己思路也有些不清晰, 任务延迟.
+
+测试前后版本.
+首先需要确定优先级调整前后CPU资源和内存资源的占用情况是否有明显的变化.
+
+实现了一个测试模块, 实现top和htop的部分功能. 这样做的目的主要是:
+1. 自定义统计方式, 可以自己选定测试开始结束时间, 宏观分析更方便;
+2. 实现33ms(ISP中断)级别的资源统计, 尝试为系统优化和分析提供一些微观的视角.
+3.
+
+
+应该是总结出一种方法或一个工具, 能够对系统CPU资源动态变化情况提供一个量化的衡量标准, 然后我们才可能评估当前系统是否存在明显问题, 是否能对其进行优化.
+具体的来讲, 对系统调度分析的问题, 分成几个阶段进行. 第一阶段,
+各种可能出现问题的地方, 不同的场景, 强化压力测试.
+
+进程监控部分, 最好内核完成, 应用部分定制好需求, 时间到达之后取结果就好, 避开用户内核态之间频繁切换, 可以提高效率.
+--------------------------------------------------------------------------------
+05.25 周4 上午正式提交system API 文档,  继续系统资源监控, 否则本月目标管理无法完成了.
+使用fseek代替每次open/close Proc文件, 资源占用减小一半.
+大概33ms采样一次信息, 测试程序本身占用5%左右系统资源, 存在两个问题:
+1. 采样时间点不准确
+2. 用户内核态之间切换开销, 间接影响待测试对象的运行.
+3. 使用proc文件系统, 效率有待提高.
+
+应该在内核态提供支持, 直接使用原始tick统计数据.
+--------------------------------------------------------------------------------
+05.24 周3  全天system API 文档, 小郭几个相关api
+--------------------------------------------------------------------------------
+05.23 周2  上午系统资源监控, 下午system API 文档 , 专利相关问题, 5:30开始座谈会, 两个小时结束.  今天领导开始出差, 周五回来
+--------------------------------------------------------------------------------
+05.22 周1   系统资源监控, 怎么这么麻烦. 一些细节问题太浪费时间了.
+--------------------------------------------------------------------------------
+05.21 周7 继续系统资源监控的问题
+修改 /kernel/arch/arm/Kconfig 文件, 找到 config HZ, 修改default 3000, 代码中HZ也调整到了3000, 成功.
+进程tick个数统计有点问题, 最后发现
+修改代码, 去掉写sd卡,看看sd占用了大概10%资源; 同样的方法, 确定一下wifi.
+--------------------------------------------------------------------------------
+05.20 周6 继续系统资源监控的问题
+进程级别的打印, 100HZ没有问题了, 3000HZ修改但失败.
+专利问题: jason zhao / 胡斌
+--------------------------------------------------------------------------------
+05.19 周5    丁总 测试 邮件
+已经发邮件并和东俊初步讨论, 好像公司现在trace和测试不完整.
+继续系统资源监控的问题
+--------------------------------------------------------------------------------
+05.18 周4  盛大花园小学家长会, 小朋友报到.
+--------------------------------------------------------------------------------
+05.17 周3  今天希望完成cpu性能测试代码, 主要进程部分.
+--------------------------------------------------------------------------------
+05.16 周2  cpu性能测试代码 下午会议
+--------------------------------------------------------------------------------
+05.15 周1  cpu性能测试
+--------------------------------------------------------------------------------
+05.14 周7 linux中断子系统.
+--------------------------------------------------------------------------------
+05.13 周6 上午舞蹈课, 下午乐高
+--------------------------------------------------------------------------------
+05.12 周5  apollo3音频测试 和 编译服务器的问题
+关键字:  apollo3音频测试  audio测试 ip2906.c ldo 3.3v
+编译apollo3_evb_ipc出问题, 换apollo3_evb
+录制的voice.wav 头部特殊的信息, 需要去掉之后才能在pc上播放.
+3段耳机插口, 用4段耳机,需要拔出来一段.
+麦克风在板子上,不能通过耳机录音.
+录音导出, 启动audacity程序,选择file->import->raw data, 格式为32bit 16000hz 双声道
+使用audacity程序,保存以便其他软件播放
+vim编辑二进制     %!xxd
+--------------------------------------------------------------------------------
+05.11 周4
+上午,中断子系统
+下午联系一下王辉, 然后看看源码中簇号为0可能对应什么情况,最好能够拿到出事的卡做重现的测试. 分析trace和相关代码.
+int fat_get_cluster(struct inode *inode, int cluster, int *fclus, int *dclus)
+    fat_bmap_cluster
+        fat_bmap
+            fat__get_entry
+            __fat_get_block
+    fat_free
+        fat_truncate_blocks
+            fat_setattr
+            fat_write_failed
+            fat_evict_inode
+    fat_calc_dir_size
+        fat_fill_inode
+        fat_read_root
+    fat_chain_add
+        fat_add_entries
+        fat_add_cluster
+/testing/configure.ac 中出现错误, watchdog/Makefile mmc/Makefile, 已经在最新的commit中修复. mmc_test 在 q3evb 工作异常, 因为胡乱mount的缘故. 大概2个小时才修复这个问题.
+--------------------------------------------------------------------------------
+05.10 周3
+上午,完成fs-writeback文档的格式修改和上传
+下午,完成述职报告(居然花了两个小时才完成,保存下来以后瞻仰): 然后查阅cpu资源统计方式.
+自2017年2月20日加入盈方微平台软件部, 不知不觉试用期就到了尾声, 回顾过去的3个月, 感觉非常充实和紧凑, 个人知识结构和技能上都有很大的提升. 感谢盈方微这个平台, 感谢各位领导和同事予以我的方方面面的支持和帮助.
+首先回顾一下期间主要工作内容吧.
+进公司之后, 最初的工作任务是完成applo3项目几个模块的验证, 工作内容很简单, 最主要的收获是在过程中不断查阅相关信息和代码, 逐步的熟悉buildroot开发环境和公司软件开发工具与流程.
+之后, 是解决了FAT32多个视频流文件同时写入SD卡速度慢的问题. 过程中深入学习了fat32/内存回写/块设备驱动/mmc驱动等几个重要内核和驱动模块, 对存储系统基本的结构和流程有了清晰的理解, 最后采用延时分配簇的方法完成初步的性能优化. 与此同时, 对内存回写策略做了详细的测试和分析, 并针对tf360产品给出了优化建议. 这个过程中, 另一个重要的收获就是逐步总结和掌握内核学习分析的方法.
+我非常喜欢当前的工作内容和方向, 并愿意为之付出不懈的努力. 之前的工作经历中, 我个人尤其重视产品性能优化和提高产品稳定性, 并积极寻求改进. 现在的岗位进一步拓宽了我的视野, 我愿意以饱满的工作热情投入工作中去.
+从工作素养方面讲, 我一直自觉遵守公司各项规章制度, 遵守员工守则. 有高度的责任感和良好的团队合作精神, 努力学习掌握熟练应用岗位相关业务知识, 积极主动认真完成工作要求.
+以上是我3个月试用期的总结，期待能予以转正融入盈方微这个大家庭, 与大家共同努力和进步.
+
+新的任务:  system api接口 文档.
+上传的回写参数帮助文档,需要重新格式化.
+文档管理问题:  新API文件放在： \psdocs\qsdk\api_zh_dev
+API：
+1.     添加API或者数据类型请参照模板api.md & datatype.md，git路径psdocs\qsdk\api_zh\template
+2.     除了【描述】，【相关主题】结束时需要有标点符号；其它，如表格内描述，列表等最后不需要标点符号
+3.     新增API需要添加到SUMMARY.md中，再执行genlist.sh，此时会生成apilist.md。apilist.md不要手动修改。
+4.     【依赖】项中，如果有多个.h或者库，需用空格分开。
+文档添加头：
+1.     请参照模板head_en.md，head_cn.md
+2.     版本都从V0.1开始
+3.     改结构，做删减，添加需要将版本增加0.1, 采用十进制。
+4.     只针对提供给BU的guide文档，内部文档不做此要求。
+
+psdocs/qsdk/api_zh_dev下的genlist.sh工具已经更新，用法是：
+ ./genlist.sh SUMMARY.md apilist.md
+注意：
+     所有未更新的或者格式有错误的列表，都会在对应的条目标红；
+     无法识别或者格式问题，程序会退出并显示错误行，请观察对应文件排查错误．
+
+--------------------------------------------------------------------------------
+05.09 周2
+完成调整并上传 mmc_test 程序, 实现sd卡的速度测试.
+测试发现, usleep的精度,只有3.3ms. 而且cmn-timer视乎不支持one-shot模式,会否因此而不能支持高精度timer呢?
+--------------------------------------------------------------------------------
+05.08 周1
+cat /proc/loadavg可以看到当前系统的load
+$ cat /proc/loadavg
+0.01 0.02 0.05 2/317 26207
+前面三个值分别对应系统当前1分钟、5分钟、15分钟内的平均load。load用于反映当前系统的负载情况，对于16核的系统，如果每个核上cpu利用率为30%，则在不存在uninterruptible进程的情况下，系统load应该维持在4.8左右。对16核系统，如果load维持在16左右，在不存在uninterrptible进程的情况下，意味着系统CPU几乎不存在空闲状态，利用率接近于100%。结合iowait、vmstat和loadavg可以分析出系统当前的整体负载，各部分负载分布情况。
+
+--------------------------------------------------------------------------------
+05.07 周7
+cmn1_timer_test_case1()函数传递了1us参数,出现各种奇怪问题,调整到1ms.浪费了1个上午.
+下午修补代码,上传,然后大概总结一下吧:
+request_irq 对应 free_irq;  setup_irq 对应 remove_irq. 弄错了之后出现crash
+由于内核中float类型的支持的问题, 使用了printk(KERN_ERR "delta:(%5d~%5d us) %6d, above_all:%2ld.%02ld %%\n", pctrl->delta_us[i], pctrl->delta_us[i+1],
+            pctrl->cmn1_delta_counter[i], tmp_percent/100, tmp_percent%100); 来打印 tmp_percent, %02ld前面的0是必须的,否则看起来0.02%就成了 0.2%;
+%% 用来打印 '%'
+格式上,保持对齐很重要,不然看起来一团糟
+还有就是内核编译器对long long的乘法不支持.浪费时间.
+命名上,统一的命名视觉效果好. 全局变量多的话,用结构体.
+ko的编译还没有搞清楚; 另外就是,
+--------------------------------------------------------------------------------
+05.06 周6 上午带儿子跳舞,下午盛大花园小学幼升小面试,下午2点进场,3点出来.
+--------------------------------------------------------------------------------
+05.05 周5
+新的任务:  system api接口 文档.
+git clean -f 清除掉 不需要的 untracked files
+
+如何增加新的cmn timer 1文件:
+1. cat /kernel/driver/infotm/common/watchdog/Kconfig
+     menuconfig INFOTM_WDT
+     //INFOTM_WDT用来确定是否包含本文件夹. 使能则/common/Makefile中CONFIG_INFOTM_WDT有效,watchdog文件夹就会被包含.
+             bool "Infotm watchdog driver support"
+             default n
+          select WATCHDOG
+             help
+                  Infotm watchdog timer driver support. say yes ifneed
+     if INFOTM_WDT
+     config WDT_IMAPX   //确定本文件夹Makefile的编译选项,可以定义多个,配置选中不同的文件.
+             tristate "iMAPx wdt driver"
+             default n
+          help
+               wdt driver for iMAPx
+     endif
+
+2. cat /kernel/driver/infotm/common/watchdog/Makefile
+     obj-$(CONFIG_WDT_IMAPX)  += imapx_wdt.o //条件选择编译文件
+3. cat /kernel/driver/infotm/common/Kconfig
+     menuconfig INFOTM_DRV_COMMON //普通的菜单目录层次
+           tristate  "Infotm common drivers support"
+               depends on INFOTM_SPECIAL
+           help
+                    Infotm common drivers  support
+     if INFOTM_DRV_COMMON
+     ...
+     source "drivers/infotm/common/watchdog/Kconfig"
+     source "drivers/infotm/common/timer/Kconfig"
+     endif
+4. cat /kernel/driver/infotm/common/Makefile
+     ... //条件包含目录
+     obj-$(CONFIG_INFOTM_WDT) += watchdog/
+     obj-$(CONFIG_INFOTM_CMN1_TIMER) += timer/
+     obj-y += pr_detect/      //无条件包含pr_detect目录
+5. cat /kernel/driver/infotm/Kconfig
+     menuconfig INFOTM_SPECIAL
+          bool "InfoTM special files and drivers"
+          default y
+          select GENERIC_ALLOCATOR
+          help
+            InfoTM special files and drivers support
+
+     if INFOTM_SPECIAL
+     ...
+     source "drivers/infotm/q3f/Kconfig"
+     source "drivers/infotm/common/Kconfig"
+     endif
+6. cat /kernel/driver/infotm/Makefile
+     ...
+     obj-$(CONFIG_ARCH_Q3F)  += q3f/  //根据平台和产品配置
+     obj-y     += common/   //无条件包含
+--------------------------------------------------------------------------------
+05.04 周4
+测试结果:
+定时1ms, 测试10分钟,注意到结束时间有5s偏差,估计是有很多tasklet没来得及处理
+~~~~ cmn1_statistic show #0 Total:(600000) end at(1483258205, 497537)~~~~
+delta:(50000~   -1 us)      2, above_all: 0.00 %
+delta:(30000~50000 us)      0, above_all: 0.00 %
+delta:(20000~30000 us)      0, above_all: 0.00 %
+delta:(10000~20000 us)      0, above_all: 0.00 %
+delta:( 5000~10000 us)      0, above_all: 0.00 %
+delta:( 2000~ 5000 us)      1, above_all: 0.00 %
+delta:( 1000~ 2000 us)      0, above_all: 0.00 %
+delta:(  600~ 1000 us)      0, above_all: 0.00 %
+delta:(  400~  600 us)      0, above_all: 0.00 %
+delta:(  200~  400 us)      3, above_all: 0.00 %
+delta:(  150~  200 us)    222, above_all: 0.03 %
+delta:(  100~  150 us)   2730, above_all: 0.49 %
+delta:(   80~  100 us)   2162, above_all: 0.85 %
+delta:(   40~   80 us)  11032, above_all: 2.69 %
+delta:(   20~   40 us)  17502, above_all: 5.60 %
+~~~~ cmn1_statistic show #1 Total:(600000) end at(1483258210, 350597)~~~~
+delta:(50000~   -1 us)      2, above_all: 0.00 %
+delta:(30000~50000 us)      0, above_all: 0.00 %
+delta:(20000~30000 us)      0, above_all: 0.00 %
+delta:(10000~20000 us)      0, above_all: 0.00 %
+delta:( 5000~10000 us)      0, above_all: 0.00 %
+delta:( 2000~ 5000 us)    104, above_all: 0.01 %
+delta:( 1000~ 2000 us)   3448, above_all: 0.59 %
+delta:(  600~ 1000 us)   7563, above_all: 1.85 %
+delta:(  400~  600 us)   4991, above_all: 2.68 %
+delta:(  200~  400 us)   7783, above_all: 3.98 %
+delta:(  150~  200 us)   2975, above_all: 4.47 %
+delta:(  100~  150 us)   5333, above_all: 5.36 %
+delta:(   80~  100 us)   2574, above_all: 5.79 %
+delta:(   40~   80 us)  16854, above_all: 8.60 %
+delta:(   20~   40 us)  73567, above_all:20.86 %
+
+定时10ms, 测试10分钟
+~~~~ cmn1_statistic show #0  Expect:(60000) Real:(60002) latest:(1483258201, 325844)~~~~
+delta:(50000~   -1 us)      2, above_all: 0.00 %
+delta:(30000~50000 us)      0, above_all: 0.00 %
+delta:(20000~30000 us)      0, above_all: 0.00 %
+delta:(10000~20000 us)      0, above_all: 0.00 %
+delta:( 5000~10000 us)      1, above_all: 0.00 %
+delta:( 2000~ 5000 us)      6, above_all: 0.01 %
+delta:( 1000~ 2000 us)      9, above_all: 0.03 %
+delta:(  600~ 1000 us)      0, above_all: 0.03 %
+delta:(  400~  600 us)      0, above_all: 0.03 %
+delta:(  200~  400 us)      0, above_all: 0.03 %
+delta:(  150~  200 us)     23, above_all: 0.06 %
+delta:(  100~  150 us)    174, above_all: 0.35 %
+delta:(   80~  100 us)    235, above_all: 0.75 %
+delta:(   40~   80 us)   1000, above_all: 2.41 %
+delta:(   20~   40 us)   2283, above_all: 6.22 %
+~~~~ cmn1_statistic show #1  Expect:(60000) Real:(60001) latest:(1483258201, 335863)~~~~
+delta:(50000~   -1 us)      2, above_all: 0.00 %
+delta:(30000~50000 us)      0, above_all: 0.00 %
+delta:(20000~30000 us)      0, above_all: 0.00 %
+delta:(10000~20000 us)      0, above_all: 0.00 %
+delta:( 5000~10000 us)      3, above_all: 0.00 %
+delta:( 2000~ 5000 us)    991, above_all: 1.66 %
+delta:( 1000~ 2000 us)    728, above_all: 2.87 %
+delta:(  600~ 1000 us)    611, above_all: 3.89 %
+delta:(  400~  600 us)    419, above_all: 4.59 %
+delta:(  200~  400 us)    603, above_all: 5.59 %
+delta:(  150~  200 us)    269, above_all: 6.04 %
+delta:(  100~  150 us)    324, above_all: 6.58 %
+delta:(   80~  100 us)    229, above_all: 6.96 %
+delta:(   40~   80 us)   2181, above_all:10.60 %
+delta:(   20~   40 us)  18093, above_all:40.75 %
+
+static void cmn1_tasklet_func0(unsigned long para)
+{
+    static int  cmn1_int_counter = 0;
+    static struct timeval *cmn1_time_history = NULL;
+
+    if(cmn1_int_counter == 0){
+        cmn1_time_history = (struct timeval *)kzalloc(1024*sizeof(struct timeval), GFP_KERNEL);
+        if(cmn1_time_history == NULL){
+            writel(0, cmn1_timer_base + TIMER_CTRL);
+            return;
+        }
+    }
+
+    do_gettimeofday(&cmn1_time_history[cmn1_int_counter]);
+    if(cmn1_int_counter >= 1000){
+        cmn1_disable_counter();
+
+        int i;
+        printk(KERN_DEBUG "~~~~cmn1_timer_reload:%ld~~~~\n",
+            cmn1_timer_reload);
+        for(i=0;i<1000;i++){
+            printk(KERN_DEBUG "seq:%4d :%3ld, %6ld\n", i,
+                cmn1_time_history[i].tv_sec%1000, cmn1_time_history[i].tv_usec);
+        }
+
+        kfree(cmn1_time_history);
+    }
+    cmn1_int_counter++;
+}
+--------------------------------------------------------------------------------
+05.03 周3
+需求和功能定义:
+1. 客户注册tasklet函数方式实现功能;
+2. 客户可以注册多个周期性的timer
+3. 支持多个单次timer吗,暂时不考虑
+cortex-a5不支持 long long 类型的除法.
+--------------------------------------------------------------------------------
+05.02 周2
+
+假期后第一天了,时间子系统,结束,然后开始客户任务.
+cmn1-timer中断功能, 在用户空间和驱动层接口; 明天,开启一个内核线程,延时5s, 等启动流程结束之后再开始测试, 并完成其他相关测试 !!!!
+--------------------------------------------------------------------------------
+05.01 周1 加班,时间子系统
+--------------------------------------------------------------------------------
+04.30 周7 加班,时间子系统,心烦,效率很低
+--------------------------------------------------------------------------------
+04.29 周6 上午带小熊跳舞,中午睡觉2小时,然后带小熊去乐高
+--------------------------------------------------------------------------------
+04.28 周5
+上午整理之前的一些信息,提交fat32双文件写结果. 并思考进程调度的任务如何完成.
+下午了解时间管理的内容.
+--------------------------------------------------------------------------------
+04.27 周4
+上午请假看牙,预约了8.14上午,需要保证1万资金,保证身体状况良好;
+下午,解决了fat32延时分配策略的问题,在不同的sd卡上通过性能测试.
+--------------------------------------------------------------------------------
+04.26 周3
+预分配的方式看起来遥遥无期, 有些机制性的困惑,暂时放弃;
+开始延时分配策略的调试,
+--------------------------------------------------------------------------------
+04.25 周2
+尝试追踪回写的流程,期望通过不同文件的数据在回写队列中重新排序来提高效率,但付老师提醒实际机制可能不是想象的那样,而且这部分确实太不熟悉,trace打印不知道如何才能得到足够的信息,最后只能放弃.
+--------------------------------------------------------------------------------
+04.24 周1
+sum:10014,null:378,err:9,dma:1035,cnt(0,0,8973,1035,0,0)
+cmd(0,3) cmd(2,1) cmd(3,2) cmd(5,6) cmd(6,3) cmd(7,2) cmd(8,3) cmd(9,1)
+cmd(13,6802)   SD_APP_SD_STATUS 读取SD卡状态寄存器
+cmd(17,3)      读取扇区命令
+cmd(18,633)    读取多个扇区直到发送停止命令
+cmd(24,4)
+cmd(25,391)    写多个扇区命令
+cmd(41,4) cmd(51,1) cmd(52,83)      cmd(55,7)
+1. 我关注的应该是,连续写入4m,总共花了多少时间.
+2. 把小的数据块也计算进去., 计算和打印差值, 这样可以保存更多的中间数据.
+3. 24和25命令, 可能也需要关心夹杂的命令, 每个数据请求的开始时间, 查询状态时间, 数据dma传送完毕, 数据长度, 一次连续4m数据的时间,等等.
+--------------------------------------------------------------------------------
+04.20 周4/5/6
+通过增加sleep减少cmd 13的调用次数,从而减少sdio中断的方法是可行的,但是需要付出代价,128k的包发送时间从8ms增加到9ms,速度降低10%. 但是中断个数降低到原有的1/3,以后继续尝试更有效的机制.
+mmc模块,增加打印信息,跟踪request发送的过程,了解发送流程,理解代码实现.
+--------------------------------------------------------------------------------
+04.19 周三
+Q3F_EVB回写时间配置影响测试
+目标：测试不同(dirty_writeback_centisecs,dirty_expire_centisecs)配置对sdio中断次数的影响。
+系统缺省为(500, 3000), 对应回写时间(5s,30s)；分支dev_qsdk_dv为(50,50)，对应(0.5s,0.5s)
+测试方式： 不同参数配置下，基于Q3f_evb，测试程序控制写入文件速度在1mbyte/s左右，写入文件１２８ｍ
+表格：
+配置　       write()块大小  写入速度　　文件总长度　　  中断次数
+(500,3000)   32k             1024k/s    128m     53000
+(500,3000)   64k             1024k/s    128m     48000
+(50,50)      32k             1024k/s    128m     183000
+(50,50)      1024k           1024k/s    128m     153000
+可以看到，回写时间越小，中断次数越多。当前dev_qsdk_dv应该用的是(50,50)的参数，即使使用了1M缓冲也比(500,3000)下32k缓冲中断次数多1倍。
+强制0.5s回写大幅度增加中断次数，也导致回写优化机制基本失效。
+上面的测试，可以在tf360上运行一下，看看结果如何。
+--------------------------------------------------------------------------------
+04.18 周二
+打印了每次超时和阈值回写写入sd卡多少page，再把bdi的worklist也打印出来，
+Writeback机制的好处总结起来主要是两点：
+    加快write()的响应速度。因为media的读写相对于内存访问是较慢的。如果每个write()都访问media，势必很慢。将较慢的media访问交给writeback thread，而write()本身的thread里只在内存里操作数据，将数据交到writeback queue即返回。
+    便于合并和排序 (merge and sort) 多个write，merge是将多个少量数据的write合并成几个大量数据的write，减少访问media的次数；sort是将无序的write按照其访问media上的block的顺序排序，减少磁头在media上的移动距离。
+--------------------------------------------------------------------------------
+04.17 周一
+--------------------------------------------------------------------------------
+04.16 周日 把worklist也打印出来
+--------------------------------------------------------------------------------
+04.15 周六 需要搞清楚回写的优先级
+回写线程应该不会有很高的优先级。
+--------------------------------------------------------------------------------
+一些杂乱的想法
+停止录像的时候差不多需要4s回写完毕，wifi预览10秒以上才会看到一次图像变更(应该是收到了一个完整的i帧吧)；改成(500,3000)和1024k，明显改善很多。
+怎么感觉1024k的buffer是在帮忙抢占资源啊。500ms的回写，也是在帮忙抢占
+ｗｉｆｉ，ＳＤ卡，音视频等等，竞争ＣＰＵ，内存，ＩＯ，ＤＭＡ，中断本身。dma现在有几个，彼此是分开的吗？
+需要结合几个问题一起研究１.大图片短时写入ｓｄ卡问题，２.缩小回写缓存问题，３.１ｍ缓存非Ｏ_ＤＩＲＥＣＴ写入问题，４.多文件写入慢
+提高isp线程和H1 thread优先级，之前导致几个问题:1.audio丢帧（raw数据处理不及时ｂｕｇ） 2. videobox阻塞卡死（同样提高优先级）
+３．recorder做mux的时候，会来不及，导致前面buffer堵住。来不及的原因是因为写SD卡，只做mux不写SD卡没有问题。准备对mux写SD卡的行为做优化
+总资源有限时，每个线程不能直接抢一部分自己用，这回恶化整个环境。所以，图片的写入和视频流的写入，需要码率均衡实现。完全优先图片的话，导致。。同样，如果优先ｗｉｆｉ的，那么
+wifi中断是165 dw_mci
+--------------------------------------------------------------------------------
+倪高鹏　ranson.ni@infotm.com 设备密码 admin888 还是admin88
+提高vplay优先级	http://gerrit.in.infotm.com/#/c/9619/
+问题背景源于RM#1471	上code记录为 http://gerrit.in.infotm.com/#/c/9455/
+永滨回件:
+./app-launcher/sysserver/hwlib/camera_spv.c
+int take_picture_interpolate(char *filename, int width, int height)
+
+老分支获取方法：
+repo init -u ssh://user.name@gerrit.in.infotm.com:29418/manifest/buildroot -b dev_Q3_carDv_mc
+repo sync -c
+repo start --all dev_Q3_carDv_mc
+实验平台的代码获取：
+repo init -u ssh://eric.yun@gerrit.in.infotm.com:29418/manifest/buildroot -b dev_qsdk_dv
+repo sync -c
+repo start --all dev_qsdk_dv
+--------------------------------------------------------------------------------
+evb测试命令
+echo 50 > /proc/sys/vm/dirty_expire_centisecs
+echo 50 > /proc/sys/vm/dirty_writeback_centisecs
+echo 500 > /proc/sys/vm/dirty_writeback_centisecs
+echo 3000 > /proc/sys/vm/dirty_expire_centisecs
+cat /proc/sys/vm/dirty_writeback_centisecs
+cat /proc/sys/vm/dirty_expire_centisecs
+/usr/bin/wdt_test frame -o /mnt/multi -b 32 -g 0 -t 128 -n 1
+/usr/bin/wdt_test frame -o /mnt/multi -b 1024 -g 0 -t 128 -n 1
+--------------------------------------------------------------------------------
+04.14 周五 tf360设备使用
+wifi预览可以使用低码率或者低分辨率吗？
+链接TF360,需要设备开启wifi，手机下载 dev_qsdk/system/app-launcher/app/DV/bin/DV.apk，通过软件链接设备的wifi失败，然后改用手机设置链接wifi成功，看到视频流。
+开启wifi预览，即使不打开录像功能，wifi预览卡顿也很严重。
+设备按键：1.拍照模式下拍照，预览模式下打开关闭录像; 2.长按关机，切换预览拍照设置模式; 3.开启wifi,菜单模式上键4.菜单模式下键
+帧率测试过程：1. 设备运行中 2.切换到预览模式 3.多等几秒后关机 4. 检查然后删除sd卡上所有录像 5.重新插卡上电开机，等wifi预览有视频6.切换录像6分钟7.切换到预览。
+配置参数在初始化的时候才能改变，大量写入测试之后改变配置，结果很不稳定。所以每次更换配置需要重启
+链接不上，重启wifi链接，不行重启应用程序，再不行重启设备和重启手机。
+--------------------------------------------------------------------------------
+04.13 周四
+修改代码减小buffer到4k，编译车载工程，录像然后安装mediainfo解析，没有发现丢帧问题。
+明天打开wifi尝试重现问题，然后再改。
+--------------------------------------------------------------------------------
+04.12 周三
+--------------------------------------------------------------------------------
+04.11 周二 计划整理完mmc下层代码，理清数据结构和函数，尤其是queue相关的部分
+
+--------------------------------------------------------------------------------
+04.10 周一 本周计划：阅读整理完毕内存映射之外的所有代码。
+今天测试,　多个线程，线程中创建文件，写入数据，同步然后关闭文件，所有write()进入临界区.
+型号 单路１２８ 异步双路１２８ 同步双路１２８ 异步８路６４ 同步８路６４
+Sandisk class4
+Sandisk class10 8.5 7.0 5.4
+OV 6
+kingston 10
+PNY 10 9.8
+Netac 6
+transcend 10
+maxell 4
+结果和想象有偏差，多线程临界区没有影响，最有效的优化就是６４ｋ对齐写入。应该增加单线程写入多文件的测试项目，这样可以知道元数据优化是否有作用。但是这之前应该增加足够的trace信息支持，mmc层和fat32层。
+--------------------------------------------------------------------------------
+04.09 周日 笔记本ubuntu双系统安装完毕
+部分文件导出到有道云 增加sublime中文输入支持和evernote支持 查阅适合自己的笔记方式
+--------------------------------------------------------------------------------
+04.08 周六　带孩子，上午跳街舞，下午长风公园　
+--------------------------------------------------------------------------------
+04.07 周五
+几个之前问题：
+     evb无法检测到部分sd卡，因为卡槽被sandisk撑大了
+     evb大批量写入ｓｄ卡内存ｐａｇｅ问题ｃｒａｓｈ，估计是因为apollo3板子ddr问题。
+     /proc/sys/vm/dirty_*文件，回写机制。
+     测试，创建一个很大的文件，然后直接写入，因为不需要改变大小和床架簇，速度应该和正常的设备访问差不都，可以避开fs的影响。
+--------------------------------------------------------------------------------
+04.06 周四  ｍｍｃ部分驱动，最后应该把主要数据结构弄清楚
+--------------------------------------------------------------------------------
+04.05 周三  上午，继续阅读代码。 下午周会时间比较长
+根据当前write的大小，确定分配多少个簇，这种方式，在有目标的测试的情况下，应该可以做到性能最优化吧?哪怕没有实际内存，簇已经分配好了。另外，分配连续簇也需要考虑到内存ｃａｃｈｅ有限情况下，回写可能很多。　修改策略，在多种情况下分析
+脚本　　./q3fevb_va_ipc/system/root/.videobox/path.json　　
+ｉｓｐ的应用情况，需要了解一下如何搭建，如何修改和使用。
+一种场景：连续抓拍多张图片，要求拍完１ｓ内可以拔卡，这时候回写参数需要配置：永久或者临时改为１ｓ回写，分析和测试对系统的影响。
+回写策略，可以参考媒体组代码增加场景测试用例
+--------------------------------------------------------------------------------
+04.02 周日
+内存测试已经测试完毕，请确认测试结果。
+
+测试方法：
+echo x > /proc/sys/vm/dirty_background_ratio
+echo 2x > /proc/sys/vm/dirty_ratio
+尝试了x=1,2,3,4,6,8,9,10这几种配置。
+
+每种配置下６４次创建文件写入１２８ｍ数据再删除文件，总数据量８Ｇ。单个数据块保持６４ｋ。记录中断次数和时间信息。
+
+测试结果(写入８Ｇ数据)：
+配置 持续时间(s)　中断次数 平均速度(M/s)
+(1,2) 1402 12841863 5.84
+(2,4) 1193 7130090 6.87
+(3,6) 1189 6646450 6.89
+(4,8) 1169 6554162 7.01
+(6,12) 1184 6169589 6.92
+(7,14) 1173 5927927 6.98
+(8,16) 1155 5358070 7.09
+(9,18) 1121 6391066 7.31
+(10,20) 1113 6529605 7.36
+
+(1,2)配置中断次数过多，且写速度大幅降低，绝对不可取。(3,6)或者(4,8)配置性价比比较高，节省内存，性能也比较客观。
+
+--------------------------------------------------------------------------------
+04.01 周六
+dw_mci_write_data_pio 函数中 sg_miter_next(sg_miter)　传递的什么数据，应该是连续的数据，长度估计没有什么特别的限制吧
+是否应该在mmc层驱动打印命令，参数，数据长度信息 struct mmc_request *mrq;struct mmc_command *cmd;struct mmc_data *data;
+注册到存储系统的是　struct mmc_host，上层看到的是mmc card, 交互是通过LBA和数据。
+static const struct mmc_host_ops dw_mci_ops = {　//对象struct mmc_host *mmc作为主要句柄参数
+     .request = dw_mci_request,
+     .pre_req = dw_mci_pre_req,
+     .post_req = dw_mci_post_req,
+     .set_ios = dw_mci_set_ios,
+     .get_ro = dw_mci_get_ro,
+     .get_cd = dw_mci_get_cd,
+     .enable_sdio_irq = dw_mci_enable_sdio_irq,
+};
+struct platform_device *pdev和host实际是一体的吧；slot和mmc好像也是一体的，mmc有实际的ops。
+platform_dev host slot mmc_host 这4层架构
+mci_send_cmd(slot,SDMMC_CMD_UPD_CLK | SDMMC_CMD_PRV_DAT_WAIT, 0);　命令被抽象在slot层次，这是面对mmc层的
+host层应该只是管理内存中断寄存器等资源而已。
+--------------------------------------------------------------------------------
+03.31  周五
+内存ｍａｌｌｏｃ失败的问题，因为文件系统的ｃａｃｈｅ过多
+     echo 1 > /proc/sys/vm/dirty_background_ratio
+     echo 2 > /proc/sys/vm/dirty_ratio
+
+undefined reference to `pthread_create` 错误:
+     gcc wdt_test.c -o thread -lpthread
+
+
+中断发生个数统计　 /proc/interrupts
+164: 285356 GIC dw-mci
+165: 87 GIC dw-mci
+
+struct msdos_sb_info {
+struct inode *fat_inode;
+     MSDOS_I(fat_inode)->i_pos = 0;
+struct inode *fsinfo_inode;
+     fsinfo_inode->i_ino = MSDOS_FSINFO_INO;
+sb->s_root
+     root_inode = new_inode(sb);
+     root_inode->i_ino = MSDOS_ROOT_INO;
+     error = fat_read_root(root_inode);
+          MSDOS_I(inode)->i_pos = MSDOS_ROOT_INO;
+     fat_attach(root_inode, 0);
+          MSDOS_I(inode)->i_pos = 0;
+
+--------------------------------------------------------------------------------
+03.30  周四
+回写算法中，单个文件可能无法享受到最好待遇，分摊到两个文件中，反而性能提升。
+写入整体速度突然降低了一半，是否是写满了，现在有额外的擦除动作？　插拔了一次ｓｄ卡，好了。
+
+-b 512 -g 4 7.28
+-b 256 -g 4 6.90
+-b 128 -g 4 6.55
+-b 64 -g 4 6.24 9 14.56
+-b 32 -g 4 4.85 9 14.56
+-b 16 -g 4 3.54 10 13.11
+-b 8 -g 4 2.34 13 10.08
+-b 4 -g 4 1.70 25s 5.24 //比-b 64 -g 4，将近２倍块数，４倍写次数
+
+-b 64 -g 320 131s 1.00 9 14.56
+-b 64 -g 256 79/133s 0.98 9 14.56
+-b 64 -g 193 79s 1.68
+-b 64 -g 192 45/55s 2.92 31 4.23 //和为２５６
+-b 64 -g 128 40/54s 3.30 9 14.56
+-b 64 -g 96 38/46s 3.45 9 14.56
+-b 64 -g 65 9 14.56
+-b 64 -g 64 38s 3.45 16 8.19 //和为１２８，怎么感觉从总是从１２８对齐的地方读取的话性能低。
+-b 64 -g 63 9 14.56
+-b 64 -g 32 30s 4.27 12 10.92
+-b 64 -g 16 25s 5.03 10 13.11
+-b 64 -g 8 24s 5.15 9 14.56
+-b 64 -g 4 21s 6.24 9 14.56
+-b 64 -g 1 20s 6.55 9 14.56
+-b 64 -g 0 15s 8.25 8 16.384
+
+--------------------------------------------------------------------------------
+03.29  周三
+继续测试：仍然避开文件系统的影响，今天首先测试读取性能，然后测试双线程写入，然后
+
+int remove(char * filename);     删除指定文件
+--------------------------------------------------------------------------------
+03.28  周二
+两级分配策略：不实际占用，而是预留大量簇，其他文件优先分配其他未预留簇。需要回写算法保证按照擦除块刷新才能保证效率。
+     预留大量簇比如５１２ｋ，分配６４ｋ
+     如果是一堆小文件慢速同步写入，这么处理的效率完全无法保证，需要交叉保存，那我们就应该分开数据和元数据的同步。
+考虑碎片问题，时间次序和物理扇区地址最好保持线性管理。老的锁定文件，应该集中在一起管理。这，应该是上层的逻辑。
+考虑覆盖和碎片问题，如果一个擦除块被两个文件使用，那么必然导致碎片越来越多。
+下午做了大量测试：
+几个之后看看的函数：
+     write_dirty_buffer(bhs[i], WRITE);
+     wait_on_buffer(bhs[i]);
+--------------------------------------------------------------------------------
+03.27  周一
+上午ｒｅｖｉｅｗ之前ｆａｔ３２相关笔记，整理思路。
+下午ｔｅａｍ周会，讨论ｆａｔ３２优化，两个半小时。发现自己对ＳＤ卡ｆｔｌ的理解是错误的。继续看看代码。
+peter说lseek会导致大量中间数据内容的写入
+延后分配方式，可以自动决定分配多少cluster,缺点是，如果不是区对齐的写入会导致碎片。
+--------------------------------------------------------------------------------
+03.25/26  周六 周日 全天阅读fat32源码
+--------------------------------------------------------------------------------
+03.24  周五 菊花茶 耳机
+上午：查阅NAND基本工作机制，也看了一些SSD相关的内容；cache.c文件
+下午：填写职级申请大半小时，继续学习fat32源码
+--------------------------------------------------------------------------------
+03.23  周四　菊花茶 耳机
+上午新员工培训，学习fat32源码
+--------------------------------------------------------------------------------
+03.22  周三　内核学习文件系统
+--------------------------------------------------------------------------------
+03.21  周二　文件系统
+--------------------------------------------------------------------------------
+03.20  周一  块设备驱动　文件系统 页高速缓存
+--------------------------------------------------------------------------------
+03.19   周日  复习ＭＭＣ底层驱动部分　块设备驱动程序
+--------------------------------------------------------------------------------
+03.18   周六  复习ＭＭＣ底层驱动部　
+--------------------------------------------------------------------------------
+03.17   周五
+完善ｓｄ卡测试程序；读写测试８个型号的tf卡
+        写入速度    读取速度
+sandisk 4    3.937 M        16.786 M
+sandisk 10    8.462 M        17.355 M
+OV 6         5.85 M        17.066 M
+kingston 10    8.462 M        16.254 M
+PNY 10        9.752 M        16.254 M
+Netac 6        5.5 M        8.827 M
+transcend 10    7.313 M        16.254 M
+maxell 4    4.413 M        8.752 M
+没有成功实现auto_delayline : yes 0x20 0x10 all,　之前不能mount TF卡，会出错
+--------------------------------------------------------------------------------
+03.16   周四
+上午ｄｏｎｇｊｕｎ确认IP2906没有上电，修改驱动之后，录音和播放ｏｋ。下午，使用ｄｄ测试ｓｄ卡读写速度；烧录版本经常烧录不上，
+test_qsdk 编译va版本 dev_qsdk编译va_ipc版本
+SD卡速度测试几个问题：
+１．写入大量数据的时候出现错误: Unable to handle kernel paging request at virtual address cf63200，难道是因为ｐａｇｅ内存用尽的缘故，需要增加流量控制的代码。　items.itm 中dram增加到１２８Ｍ看能否解决问题。
+２．写３２Ｍ数据，４ｋ的buffer需要４０ｓ，１Ｍ的buffer第一次９ｓ之后４ｓ，创建文件不需要什么时间，应该是因为ｆａｔ表影响很大。时间精度需要提高，或者提高容量。上午ｄｄ测试的时候，４００Ｍ需要４５ｓ，这是不用文件系统的情况。
+--------------------------------------------------------------------------------
+03.15   周三
+apllo3验证wdt/cmntimer/uart/蓝牙
+上午看ＤＷ ＭＭＣ部分的驱动和验证板子，下午和晚上验证ａｂｃｔｒｌ占用了大量时间
+--------------------------------------------------------------------------------
+03.14   周二 文件系统文档学习
+编译运行q3fevb_va_ipc工程，d304main &    d304bt   手机检测到QiwoIpc蓝牙和Ａ８,但是配对失败。需要获取相关支持。
+继续学习文件系统
+--------------------------------------------------------------------------------
+03.1３   周一 MMC驱动中止 文件系统文档学习
+尝试，能否先重现要追踪的问题。
+--------------------------------------------------------------------------------
+03.12   周日 加班
+本周学习周报：
+     １. watchdog验证，之前的实现过于死板，模仿ａｂｃｔｒｌ程序改写，支持参数列表
+     ２． ＧＩＴ学习，因为担心一知半解导致破坏性操作，比较系统的学习了ＧＩＴ，并基于自己建立的本地和远程仓库做了练习
+     ３． wdt,uart,rtc驱动整理
+--------------------------------------------------------------------------------
+03.11   周六 国际象棋考级 3.5分了，不肯和棋，输掉
+--------------------------------------------------------------------------------
+03.10  周五 uart驱动
+ｕａｒｔ驱动，我们好像使用的是ｃｏｎｓｏｌｅ模式？相关的代码基本瞄了一遍。
+差不多也需要了解一下电路图了。
+--------------------------------------------------------------------------------
+03.09 周四 uart 　下午儿子参加星河湾面试
+上午继续了解gerrit repo git, 新建立wdt_test branch, 然后ｍｅｒｇｅ到dev_qsdk ｂｒａｎch(git pull), 结果出现额外的merge ｃｏｍｍｉｔ, 继续，git checkout xxxx, 然后git cherry-pick <commit id>, 现在一切正常了，使用repo upload system上传代码；　
+下午，开始学习uart驱动，基本上
+--------------------------------------------------------------------------------
+03.08 周三 继续学习ＧＩＴ
+上午，继续学习ＧＩＴ，主要是远程库相关，下午继续。下午３：３０～４：４５　ＥＶＭ培训
+--------------------------------------------------------------------------------
+03.07 周二 蓝牙
+上午完成ｗａｔｃｈｄｏｇ验证程序，下午学习ＧＩＴ准备提交代码。
+--------------------------------------------------------------------------------
+03.06 周一 本周计划： 提高驱动基础熟悉程度
+建伟提到蓝牙模块使用蓝牙耳机测试；　
+上午,周会，更新代码后编译出现问题，QSDK camera在使用上与之前有比较大的变化，下载最新代码后运行./tools/setproduct.sh 选择product 后，还要选择product使用的sensor配置,尝试选择了0，EVB能正常工作。 http://platsoft.in.infotm.com/#!qsdk/docs/isp/sensor/new_sensor.md
+下午,Tｅａｍ例会, watchdog增加设置超时时间参数
+--------------------------------------------------------------------------------
+03.05 周日 停止代码 读书
+linux驱动开发入门与实战书中Linux设备模型章节。
+--------------------------------------------------------------------------------
+03.04 周六 领卡
+--------------------------------------------------------------------------------
+03.03 周五 REPO GIT GERRIT 上传代码
+Linux驱动模型学习，不知道今天能否正常结束；请教一下下一步工作安排；
+报告： 1. 基本计划，学习思路 2. 当前进度情况
+本周，watchdog验证程序完成之后，先学习和timer_cmn和相关的linux基础内容，然后watchdog驱动几个相关文件，然后开始uart相关的几个文件，结果遇到一些。。的东西，所以开始看linux设备模型和基本的io mem irq 同步 char设备等，
+避开块设备驱动 USB 网络驱动 PCI等。
+!!!!!!!!watchdog驱动，涉及到platform/misc/class/cdev， 有些步骤感觉没有什么用处，搞清楚模型？
+     可以尝试删除cdev相关的定义，看watchdog能否正常工作。
+--------------------------------------------------------------------------------
+03.02 timer_cmn驱动 timer_gtm
+暂停uart部分，阅读timer文档和3个timer的代码。本周应该结束
+irq回调函数    typedef irqreturn_t (*irq_handler_t)(int, void *);
+
+--------------------------------------------------------------------------------
+03.01 已经完成wdt测试代码
+阅读手册uart部分;涉及到tty模块，感觉比较复杂，推进比较慢。
+--------------------------------------------------------------------------------
+02.28 基本完成wdt驱动阅读
+很多模块都好使用 平台设备模型 ， device.c文件中定义struct platform_device : gpio mmc pmu sensor cam spi mac memalloc pwm crypto iic rtc wtd adc bat wifi lcd backlight emif leds ids bcm6212
+
+需要优先学习的模块：     UART 同步串口 蓝牙 CMN_TIMER WATCHDOG SPI EMMC/SD/SDIO 中断 DMA基本了解 ADC(有汇编代码) RTC
+wdt主要文件：  imapx_wdt_chip.c watchdog_core.c watchdog_dev.c
+建立工程文件，包含下列内容:
+     kernel/drivers/infotm/common/*
+     kernel/drivers/infotm/q3f/*
+     kernel/arch/arm/mach_q3f/*
+     kernel/drivers/watchdog/watchdog_core.c
+     kernel/drivers/watchdog/watchdog_dev.c
+     kernel/include/linux/*.h，暂时不需要包含子目录下的头文件。
+     串口驱动文件： drivers/tty/serial/amba-pl011.c， drivers/tty/serial/serial_core.c
+             uapi/asm-generic/termios.h uapi/asm-generic/termbits.h
+     还有头文件      linux/amba/serial.h  kernel/arch/arm/include/asm/hardware/arm_timer.h
+遍历开发包部分目录，更清楚代码构造
+     增加　q3fevb_va/system/etc/init.d/S904verifyc　自动启动wdt_test程序
+--------------------------------------------------------------------------------
+02.27 低效率
+编译，config，低效率
+--------------------------------------------------------------------------------
+02.24 周五 需要大概去定季度和月度工作计划了
+     今天需要提交周报:      ftp://192.168.0.5/     格式为ownCloud/Shared/Templates/平台软件部周报_XXX_20160527.xlsx
+当日计划： 建立makefile编译模块， 阅读watchdog cmntimer uart 部分的文档和代码，确认电路设计，请教一下buildroot下app如何集成到rootfs中，然后在EVB上测试验证程序。
+基于hello.c生成了基本的makefile
+
+！ 分配的appolo3 任务：
+     cmntimer     完成驱动，在Linux框架下提供软件接口，使其功能为系统正常使用
+         /arch/arm/.../timer-cmn.c
+     uart               完成控制器驱动，调通DEBUG，至少调通一款UART蓝牙设备
+     watchdog    完成驱动，在Linux框架下提供软件接口，实现CPU软重启功能
+         /kernel/drivers/watchdog/wdt.c
+
+watchdog验证任务
+/work/dev_qsdk/system/qlibsys文件夹，system.c文件中有watchdog相关的内容，使用q3fevb_va工程在当前evb上测试验证通过，然后appolo3验证应该在apollo3_fpga工程的基础上完成
+如何配置添加这个程序么？或者需要别的方式。
+
+--------------------------------------------------------------------------------
+02.23 周四 岳父今天到上海，要早点到家
+今天计划： 启动 烧录，调试，重要开发方式的演练，source insight配置好准备代码阅读。
+昨天烧录再次失败，因为setproduct.sh应该是q3fevb_va或者q3fevb_va_ipc，而不是q3evb_v1.1，make clean, make, ./tools/setproduct.sh q3fevb_va, ./mkburn.sh /dev/sdb, 然后第一次烧录居然失败了，不知道什么原因，再次使用启动卡OK，然后再次使用烧录卡，成功。很奇怪，但是不知道中间犯了什么错误。
+但是仍然有一个问题： mkburn.sh 产生的烧录卡，烧录之后重启，打印Rebooting in 5 seconds..，然后停止，因为找不到rootfs分区
+调试方式： 基本不会用到NFS方式，似乎也没分配多余的网口给我们调试。
+生成Makefile: 以前总是使用现成的，汗！
+湿疹问题： 开空调需要注意空气湿度，但是使用加湿器又要小心湿度过高。 我家儿子去三亚一个星期，没有任何问题，去北方城市，立刻发作。   比较有判断的几篇文章http://health.sohu.com/s2011/piyan/    http://health.sohu.com/20110416/n305916902_9.shtml
+--------------------------------------------------------------------------------
+02.22 发现很需要咖啡提神 继续阅读文档
+编译qsdk问题： 终于解决了。重新安装了git repo等，编译成功，不确定之前到底是什么情况，anyway，可以继续下一步的工作了。
+配置minicom保存log文件;
+编译并烧录TF卡，出现 Card did not respond to voltage select! 实际上是自己弄错了，使用gendisk.sh产生的是启动卡，mkburn.sh产生的才是烧录卡。重新产生烧录卡，烧录失败，卡在--显示上，光标闪烁了几下之后，停止闪烁。
+环境搭建过程中的问题：
+由于在 repo init -u ssh://eric.yun@gerrit.in.infotm.com:29418/manifest/buildroot -b dev_qsdk 前错误的添加sudo，导致之后的repo sync出现permission的错误，删除掉相关的信息和文件之后，问题解决;
+编译过程出现messed up permission问题，不清楚问题，删除所有repo信息后重新安装并编译，问题没有解决;第二天过来之后原有问题消失！不知道是否是过程中有sudo或者其他因素的影响. 接着编译出现 fatal error: curses.h: 没有那个文件或目录，网上搜索，按照推荐 sudo apt-get install libncurses5-dev，没有效果; 重启PC，repo sync, 重新设置项目(不确定之前项目是那个了)，make clean, make, OK!不知道是什么环节出现的问题并且如何消失的。
+下面过程也许会有帮助
+sudo apt-get install bison flex texinfo autoconf automake wget dos2unix libtool
+gettext make automake autoconf gcc g++ python curl lzop perl build-essential
+libncurses5 libssl-dev lib32ncurses5 lib32z1 zlib1g-dev u-boot-tools
+2. sudo dpkg --add-architecture i386   (32bit support)
+sudo apt-get install lib32stdc++6
+sudo apt-get install lib32z1
+sudo apt-get install lib32ncurses5
+sudo apt-get install libc6:i386 libncurses5:i386 libstdc++6:i386
+3. sudo apt-get install p7zip-full p7zip-rar squashfs-tools micro-httpd
+subversion zip unzip git tree libncurses5-dev bzip2 lib32z1 lib32gcc1
+
+编译时间大约11分钟.
+./tools/release.sh 产生一个新的qsdk_170222文件夹，平台软件部门不需要使用。
+--------------------------------------------------------------------------------
+02.21
+编译qsdk问题： 编译失败，还是会有permission问题，以为是sshkey的问题，后来证明不是，网上搜索错误提示，尝试了几个办法都失败了; 继续阅读文档。
+和之前工作的开发环境变化比较大，之前习惯与window环境开发，现在git gerrit repo redmine 还有vim代替之前习惯了的source insight，都感觉很不适。 感觉疲惫不堪，工作内容的变更还是蛮剧烈的，整理一下需要掌握的基本东西，不能闭着眼睛向前冲了。
+今天拿到evb，接上电源和串口，正常启动，串口线坏掉换了一根，不过minicom也不熟悉，需要先了解一些基本的控制;
+--------------------------------------------------------------------------------
+02.20 新公司上班了， 继续努力！
+新公司第一天，上午处理一些手续，等待电脑就绪，下午尝试邮箱，gerrit redmine owncloud testlink等帐号，获取代码时候，因为错误的使用sudo，一直出现permission问题，处理问题过程中，看平台软件部门的相关介绍文档。
+18：30左右，jimmy帮我修正了dev-qsdk代码库的获取问题。
