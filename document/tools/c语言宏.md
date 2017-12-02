@@ -1,0 +1,136 @@
+宏定义使用陷阱1: 无法替代typedef的地位
+#define MY_TYPE1 uint_8 * 和 typedef uint_8 * MY_TYPE2 的应用:
+MY_TYPE1 a,b;    得到 uint_8 *a,b;    //不符合目标，简单替代而已
+MY_TYPE2 c,d;    得到 MY_TYPE2 c,d;  //达到目标，因为MY_TYPE2已经是一种类型了
+
+宏定义使用陷阱2: 使用宏不能包含有自增或自减操作符，否则参数在宏中如果多次展开，会出现不符合预期的结果。
+
+宏可以有返回值：
+     #define KADDR(addr) /
+     ({ int tmp = addr; /
+        if (addr > 5) tmp = 2;/
+        else tmp = 3;/
+        (addr + tmp);/
+     })
+
+软件编译时间的宏： snprintf((S8*)sys_info.release_date, sizeof(sys_info.release_date), "%s, %s", __DATE__, __TIME__);
+     __LINE__       __FILE__      __DATE__      __TIME__
+     __STDC__：如果实现是标准的,则宏_STDC_含有十进制常量1。如果它含有任何其它数,则实现是非标准的。
+
+do{...}while(0) 结构对于宏非常重要，它保证代码如你预期的进行。{ }无法完成它的作用。
+
+1. 定义简单的常数：定义常量，便于修改（切不可在后面加上分号！）
+#define N 1000  等效于 const int N = 1000; 但略有不同，define只是简单替换，而不是作为一个量来使用．
+2. 定义简单的函数：注意多使用括号
+#define  MAX( x, y ) ( ((x) > (y)) ? (x) : (y) )      #define  MIN( x, y ) ( ((x) < (y)) ? (x) : (y) )
+3. 定义单行宏：主要有以下三种用法．
+   1) 前加##或后加##，将标记作为一个合法的标识符的一部分．注意，不是字符串．多用于多行的宏定义中．用##把两个宏参数贴合在一起.例如：
+     #define A(x)  T_##x                    则 int A(1) = 10; //等效于int T_1 = 10;
+     #define A(x)  Tx##__               则 int A(1) = 10; //等效于int T1__ = 10;
+   2) 前加#@，将标记转换为相应的字符，注意：仅对单一标记转换有效（理解有误？）
+     #define B(x) #@x          则B(a)即'a'，B(1)即'1'．但切记B(abc)无效
+   3) 前加#，将标记转换为字符串．
+     #define C(x) #x      则C(1+1) 即"1+1"
+
+4. 定义多行宏：注意斜杠的使用，最后一行不能用斜杠．
+#define DECLARE_RTTI(thisClass, superClass)\
+  virtual const char* GetClassName() const\
+  {return #thisClass;}\
+  static int isTypeOf(const char* type)\
+  {\
+   if(!strcmp(#thisClass, type)\
+    return 1;\
+   return superClass::isTypeOf(type);\
+   return 0;\
+  }\
+  virtual int isA(const char* type)\
+  {\
+   return thisClass::isTypeOf(type);\
+  }\
+  static thisClass* SafeDownCast(DitkObject* o)\
+  {\
+   if(o&&o->isA(#thisClass))\
+    return static_cast<thisClass*>(o);\
+   return NULL;\
+  }
+
+5. 用于条件编译，或者防止一个头文件被重复包含
+#ifndef _AAA_H      #define _AAA_H      //c/c++代码      #endif
+#ifndef COMDEF_H #define COMDEF_H  //头文件内容      #endif
+6. 得到指定地址上的一个字节或字
+#define  MEM_B( x )  ( *( (byte *) (x) ) )           #define  MEM_W( x )  ( *( (word *) (x) ) )
+7. 得到一个field在结构体(struct)中的偏移量 #define FPOS( type, field ) ((dword) &(( type *) 0)-> field )
+     typedef struct person {    int num;    int age;    char name[20];}person;
+     #define FPOS(type,field) sizeof(((type *)0)->field)
+8. 防止溢出的 一个方法
+     #define  INC_SAT( val )  (val = ((val)+1 > (val)) ? (val)+1 : (val))
+9. 返回数组元素的个数     #define  ARR_SIZE( a )  ( sizeof( (a) ) / sizeof( (a[0]) ) )
+10. 当宏参数是另一个宏的时候,需要注意的是凡宏定义里有用''#''或''##''的地 方宏参数是不会再展开.
+11. #符号用来做填充结构，打印变量当前值的时候，可以用#来打印字符描述，更加醒目。
+     #define  FILL(a)   {a, #a}
+     enum IDD{OPEN, CLOSE};      typedef struct MSG{   IDD id;   const char * msg; }MSG;
+     MSG _msg[] = {FILL(OPEN), FILL(CLOSE)}; 相当 于： MSG _msg[] = {{OPEN, "OPEN"}, {CLOSE, "CLOSE"}};
+12.  ##来定义随机的匿名变量
+     #define  ___ANONYMOUS1(type, var, line)  type  var##line
+     #define  __ANONYMOUS0(type, line)  ___ANONYMOUS1(type, _anonymous, line)
+     #define  ANONYMOUS(type)  __ANONYMOUS0(type, __LINE__)
+     例：ANONYMOUS(static int);  即: static int _anonymous70;  70表 示该行行号;
+     第一层：ANONYMOUS(static int);  -->  __ANONYMOUS0(static int, __LINE__);
+     第二层：-->  ___ANONYMOUS1(static int, _anonymous, 70);      第三层： -->  static int  _anonymous70;
+     即每次只能解开当前层的宏,所以__LINE__在第二层才能被解开;
+13.  当宏参数是另一个宏的时候,需要注意的是凡 宏定义里有用''#''或''##''的地方,宏参数是不会再展开
+     a, 非''#''和''##''的情况
+#define TOW      (2)          #define MUL(a,b) (a*b)
+printf("%d*%d=%d\n", TOW, TOW, MUL(TOW,TOW));  宏会被展开为：  printf("%d*%d=%d\n", (2), (2), ((2)*(2)));
+     b, 当有''#''或''##''的时候 (INT_MAX是一个宏，int型的最大值,为一个变量 #include<climits>)
+#define A          (2)     #define STR(s)     #s     #define CONS(a,b)  int(a##e##b)
+printf("int max: %s\n",  STR(INT_MAX));       这行会被展开为：     printf("int max: %s\n", "INT_MAX");
+printf("%s\n", CONS(A, A));       这 一行则是：     printf("%s\n", int(AeA));
+INT_MAX和A都不会再被展开, 然而解决这个问题的方法很简单. 加 多一层中间转换宏.
+加这层宏的用意是把所有宏的参数在这层里全部展开, 那么在转换宏里的那一个宏(_STR)就 能得到正确的宏参数.
+#define A           (2)
+#define _STR(s)     #s
+#define STR(s)      _STR(s)          // 转 换宏
+#define _CONS(a,b)  int(a##e##b)
+#define CONS(a,b)   _CONS(a,b)       // 转 换宏
+
+printf("int max: %s\n", STR(INT_MAX));          // INT_MAX,int型的最大值,为一个变量 #include<climits>
+输出为: int max: 0x7fffffff
+STR(INT_MAX) -->  _STR(0x7fffffff) 然 后再转换成字符串;
+printf("%d\n", CONS(A, A));     输 出为：200
+CONS(A, A)  -->  _CONS((2), (2))  --> int((2)e(2))
+14.
+15.
+16.
+17.
+
+6. 一些注意事项：
+  1) 不能重复定义．除非定义完全相同．#define A(x) … 和#define A 是重复定义．
+  2) 可以只定义符号，不定义值．如#define AAA
+
+#define DbgPrintf(fmt, args...)  printf(fmt, ##args)       ##args 用在宏里面，用来表示args可变参数列表。
+#在英语里面叫做 pound。在C语言的宏定义中，一个#表示字符串化；两个#代表concatenate
+#include <iostream>
+void quit_command(){
+    printf("I am quit command\n");
+}
+void help_command(){
+    printf("I am help command\n");
+}
+struct command
+{
+    char * name;
+    void (*function) (void);
+};
+#define COMMAND(NAME) {#NAME,NAME##_command}
+#define PRINT(NAME) printf("token"#NAME"=%d\n", token##NAME)
+main(){
+    int token9=9;
+    PRINT(9);
+    struct command commands[] = {
+        COMMAND(quit),
+        COMMAND(help),
+    };
+    commands[0].function();
+}
+得到的结果是： token9=9               I am quit command

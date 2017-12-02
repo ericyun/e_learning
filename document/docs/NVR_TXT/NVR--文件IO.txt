@@ -1,0 +1,157 @@
+文件IO
+#include<sys/stat.h>
+#include<unistd.h>
+
+定义函数 int fstat(int fildes,struct stat *buf);
+函数说明 fstat()用来将参数fildes所指的文件状态，复制到参数buf所指的结构中(struct stat)。fstat()与stat()作用完全相同，不同的是它是作用于已打开的文件指针而不是文件名。
+返回值 执行成功则返回0，失败返回-1，错误代码存于errno。
+
+access()函数
+
+头文件：unistd.h
+功 能: 确定文件或文件夹的访问权限。即，检查某个文件的存取方式，比如说是只读方式、只写方式等。如果指定的存取方式有效，则函数返回0，否则函数返回-1。
+用 法: int access(const char *filenpath, int mode); 或者int _access( const char *path, int mode );
+参数说明：filenpath      文件或文件夹的路径，当前目录直接使用文件或文件夹名
+备注：当该参数为文件的时候，access函数能使用mode参数所有的值，当该参数为文件夹的时候，access函数值能判断文件夹是否存在。在WIN NT 中，所有的文件夹都有读和写权限
+mode 要判断的模式
+在头文件unistd.h中的预定义如下：
+#define R_OK 4 /* Test for read permission. */               #define W_OK 2 /* Test for write permission. */
+#define X_OK 1 /* Test for execute permission. */          #define F_OK 0 /* Test for existence. */
+具体含义如下：
+R_OK 只判断是否有读权限          W_OK 只判断是否有写权限          X_OK 判断是否有执行权限          F_OK 只判断是否存在
+在宏定义里面分别对应：
+00 只存在          02 写权限          04 读权限          06 读和写权限
+access函数程序范例（C语言中）
+#include <stdio.h>
+#include <io.h>
+int file_exists(char *filename);
+int main(void)
+{
+printf("Does NOTEXIST.FIL exist: %s\n",
+file_exists("NOTEXISTS.FIL") ? "YES" : "NO");
+return 0;
+}
+int file_exists(char *filename)
+{
+return (access(filename, 0) == 0);
+}
+
+系统最大打开文件描述符数 51167：/proc/sys/fs/file-max
+进程最大打开文件描述符数 1024：ulimit -n
+
+基于文件描述符的输入输出函数：
+   open：打开一个文件，并指定访问该文件的方式，调用成功后返回一个文件描述符。
+   creat：打开一个文件，如果该文件不存在，则创建它，调用成功后返回一个文件描述符。
+   close：关闭文件，进程对文件所加的锁全都被释放。
+   read：从文件描述符对应的文件中读取数据，调用成功后返回读出的字节数。
+   write：向文件描述符对应的文件中写入数据，调用成功后返回写入的字节数。
+   ftruncate：把文件描述符对应的文件缩短到指定的长度，调用成功后返回0。
+   lseek：在文件描述符对应的文件里把文件指针设定到指定的位置，调用成功后返回新指针的位置。
+   fsync:将所有已写入文件中的数据真正写到磁盘或其他下层设备上，调用成功后返回0。
+   fstat：返回文件描述符对应的文件的相关信息，把结果保存在struct stat中，调用成功后返回0。
+   fchown：改变与打开文件相关联的所有者和所有组，调用成功后返回0。
+   fchmod：把文件描述符对应的文件的权限位改为指定的八进制模式，调用成功后返回0。
+   flock：用于向文件描述符对应的文件施加建议性锁，调用成功后返回0。
+   fcntl：既能施加建议性锁也能施加强制性锁，能建立记录锁、读取锁和写入锁，调用成功后返回0。
+   dup：复制文件描述符，返回没使用的文件描述符中最小的编号。
+   dup2：由用户指定返回的文件描述符的值，用来重新打开或重定向一个文件描述符。
+   select：同时从多个文件描述符读取数据或向多个文件描述符写入数据。
+
+FILE *fopen(char *filename, char *mode)
+    filename 文件名称
+    mode 打开模式：
+        r   只读方式打开一个文本文件
+        rb  只读方式打开一个二进制文件
+        w   只写方式打开一个文本文件
+        wb  只写方式打开一个二进制文件
+        a   追加方式打开一个文本文件
+        ab  追加方式打开一个二进制文件
+        r+  可读可写方式打开一个文本文件
+        rb+ 可读可写方式打开一个二进制文件
+        w+  可读可写方式创建一个文本文件
+        wb+ 可读可写方式生成一个二进制文件
+        a+  可读可写追加方式打开一个文本文件
+        ab+ 可读可写方式追加一个二进制文件
+
+open函数
+
+相关函数：read, write, fcntl, close, link, stat, umask, unlink, fopen
+
+头文件：#include <sys/types.h>    #include <sys/stat.h>    #include <fcntl.h>
+
+定义函数：
+    int open(const char * pathname, int flags);
+    int open(const char * pathname, int flags, mode_t mode);
+函数说明：
+参数 pathname 指向欲打开的文件路径字符串. 下列是参数flags 所能使用的旗标:
+O_RDONLY 以只读方式打开文件
+O_WRONLY 以只写方式打开文件
+O_RDWR 以可读写方式打开文件. 上述三种旗标是互斥的, 也就是不可同时使用, 但可与下列的旗标利用OR(|)运算符组合.
+O_CREAT 若欲打开的文件不存在则自动建立该文件.
+O_EXCL 如果O_CREAT 也被设置, 此指令会去检查文件是否存在. 文件若不存在则建立该文件, 否则将导致打开文件错误. 此外, 若O_CREAT 与O_EXCL 同时设置, 并且欲打开的文件为符号连接, 则会打开文件失败.
+O_NOCTTY 如果欲打开的文件为终端机设备时, 则不会将该终端机当成进程控制终端机.
+O_TRUNC 若文件存在并且以可写的方式打开时, 此旗标会令文件长度清为0, 而原来存于该文件的资料也会消失.
+O_APPEND 当读写文件时会从文件尾开始移动, 也就是所写入的数据会以附加的方式加入到文件后面.
+O_NONBLOCK 以不可阻断的方式打开文件, 也就是无论有无数据读取或等待, 都会立即返回进程之中.
+O_NDELAY 同O_NONBLOCK.
+O_SYNC 以同步的方式打开文件.
+O_NOFOLLOW 如果参数pathname 所指的文件为一符号连接, 则会令打开文件失败.
+O_DIRECTORY 如果参数pathname 所指的文件并非为一目录, 则会令打开文件失败。注：此为Linux2. 2 以后特有的旗标, 以避免一些系统安全问题.
+
+参数mode 则有下列数种组合, 只有在建立新文件时才会生效, 此外真正建文件时的权限会受到umask 值所影响, 因此该文件权限应该为 (mode-umaks).
+S_IRWXU 00700 权限, 代表该文件所有者具有可读、可写及可执行的权限.
+S_IRUSR 或S_IREAD, 00400 权限, 代表该文件所有者具有可读取的权限.
+S_IWUSR 或S_IWRITE, 00200 权限, 代表该文件所有者具有可写入的权限.
+S_IXUSR 或S_IEXEC, 00100 权限, 代表该文件所有者具有可执行的权限.
+S_IRWXG 00070 权限, 代表该文件用户组具有可读、可写及可执行的权限.
+S_IRGRP 00040 权限, 代表该文件用户组具有可读的权限.
+S_IWGRP 00020 权限, 代表该文件用户组具有可写入的权限.
+S_IXGRP 00010 权限, 代表该文件用户组具有可执行的权限.
+S_IRWXO 00007 权限, 代表其他用户具有可读、可写及可执行的权限.
+S_IROTH 00004 权限, 代表其他用户具有可读的权限
+S_IWOTH 00002 权限, 代表其他用户具有可写入的权限.
+S_IXOTH 00001 权限, 代表其他用户具有可执行的权限.
+
+返回值：若所有欲核查的权限都通过了检查则返回0 值, 表示成功, 只要有一个权限被禁止则返回-1.
+     open返回的文件描述符一定是最小的未被使用的描述符。
+
+错误代码：
+EEXIST 参数pathname 所指的文件已存在, 却使用了O_CREAT 和O_EXCL 旗标.
+EACCESS 参数pathname 所指的文件不符合所要求测试的权限.
+EROFS 欲测试写入权限的文件存在于只读文件系统内.
+EFAULT 参数pathname 指针超出可存取内存空间.
+EINVAL 参数mode 不正确.
+ENAMETOOLONG 参数 pathname 太长.
+ENOTDIR 参数pathname 不是目录.
+ENOMEM 核心内存不足.
+ELOOP 参数pathname 有过多符号连接问题.
+EIO I/O 存取错误.
+
+open和fopen的区别
+1.缓冲文件系统
+缓冲文件系统的特点是：在内存开辟一个“缓冲区”，为程序中的每一个文件使用，当执行读文件的操作时，从磁盘文件将数据先读入内存“缓冲区”， 装满后再从内存“缓冲区”依此读入接收的变量。执行写文件的操作时，先将数据写入内存“缓冲区”，待内存“缓冲区”装满后再写入文件。由此可以看出，内存 “缓冲区”的大小，影响着实际操作外存的次数，内存“缓冲区”越大，则操作外存的次数就少，执行速度就快、效率高。一般来说，文件“缓冲区”的大小随机器 而定。
+fopen, fclose, fread, fwrite, fgetc, fgets, fputc, fputs, freopen, fseek, ftell, rewind等
+2.非缓冲文件系统
+缓冲文件系统是借助文件结构体指针来对文件进行管理，通过文件指针来对文件进行访问，既可以读写字符、字符串、格式化数据，也可以读写二进制数 据。非缓冲文件系统依赖于操作系统，通过操作系统的功能对文件进行读写，是系统级的输入输出，它不设文件结构体指针，只能读写二进制文件，但效率高、速度 快，由于ANSI标准不再包括非缓冲文件系统，因此建议大家最好不要选择它。本书只作简单介绍。open, close, read, write, getc, getchar, putc, putchar 等。
+
+open 是系统调用 返回的是文件句柄，文件的句柄是文件在文件描述副表里的索引，fopen是C的库函数，返回的是一个指向文件结构的指针。
+
+fopen是ANSIC标准中的C语言库函数，在不同的系统中应该调用不同的内核api
+linux中的系统函数是open，fopen是其封装函数，个人观点。仅供参考。
+
+文件描述符是linux下的一个概念,linux下的一切设备都是以文件的形式操作.如网络套接字、硬件设备等。当然包括操作文件。
+fopen是标准c函数。返回文件流而不是linux下文件句柄。
+
+设备文件不可以当成流式文件来用，只能用open  fopen是用来操纵正规文件的，并且设有缓冲的，跟open还是有一些区别
+一般用fopen打开普通文件，用open打开设备文件  fopen是标准c里的,而open是linux的系统调用. 他们的层次不同.  fopen可移植,open不能
+
+我认为fopen和open最主要的区别是fopen在用户态下就有了缓存，在进行read和write的时候减少了用户态和内核态的切换，而open则每次都需要进行内核态和用户态的切换；表现为，如果顺序访问文件，fopen系列的函数要比直接调用open系列快；如果随机访问文件open要比fopen快。
+
+来自论坛的经典回答：
+
+前者属于低级IO，后者是高级IO。
+前者返回一个文件描述符(用户程序区的)，后者返回一个文件指针。
+前者无缓冲，后者有缓冲。
+前者与 read, write 等配合使用， 后者与 fread, fwrite等配合使用。
+后者是在前者的基础上扩充而来的，在大多数情况下，用后者。
+

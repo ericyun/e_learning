@@ -1,0 +1,248 @@
+PC工作环境搭建
+关键字：windows平台常用软件
+
+Win10运行快捷键为：Win + R组合快捷键，然后可以从命令行直接执行程序。
+     D:\Program Files (x86)\vmware10\vmrun.exe E:\Fedora\Fedora.vmx
+
+fedora速度比ubuntu快些，所以直接确定之后开发都基于它算了。
+
+云盘相关：
+QT window平台，需要 mingw-get-setup.exe
+方便使用的工具的列表，如CommView，还有sourceinsight等的基本应用，还有一些基本工具的配置，操作系统的配置等等的文档。
+TeamViewer 美图秀秀  QT CREATOR SECURE_CRT
+极速PDF阅读器
+TASKKILL /F /IM test.exe      win7下可以强制停止顽固任务
+下载到处都是迅雷，需要安装一个迅雷精简版本。
+
+翻墙软件，HostsTool_1.9.8_x64_XiaZaiBa 工具，用来更新google相关的host文件
+Win7开机启动文件夹无法写入，改了计算机名称之后居然好了。
+
+3.2.     securecrt
+telnet登陆：
+添加 协议SSH2 主机 192.168.1.231 端口22  无防火墙 用户名eric
+会话选项的终端仿真选项，勾选"ANSI颜色" --- 彩色显示问题
+消灭数据库没有找到防火墙的弹出窗口：
+     选项->全局选项->常规 最下面有个配置文件夹指定的路径中增加FireWalls文件夹并在里面添加"无.ini"文件。
+     增加允许屏幕打印缓冲的内容。
+      连接hisi3531的板子，打印有乱码，
+1.     仿真改用linux，外观的字符编码改用windows-874，部分改善，遗留问题是回格需要加ctrl才会有效，
+2.     会话选项-->映射键-->选中Backspace发送delete，可以解决后一问题。不过回车换行之后，下一行会前突一个TAB的位置
+3.     模式，仿真模式中当前模式选择新行模式，解决这个问题但换行的时候会有两行
+4.     就这样吧
+
+选项->全局选项->常规->默认会话，选择"记住并连接到最后一次使用的会话"
+选项->全局选项->常规->默认会话，进入"编辑默认设置"，可以配置所有会话的默认设置，
+
+3.3.     source insight使用
+option->document options中增加C++支持的文件类型，cpp和hh，这样才可以完整的添加LIVE555的源文件；C文件添加;*s;*.sh;*.lds;*makefile，完整包含uboot的重要文件。
+sourceinsight 解决换行tab同4个spaces不对齐：
+options -> Document options -> 右下角 Editing Options -> 勾选 Expand Tabs
+sourceinsight 调整字体大小：
+options -> Document options -> 左上角 Document Type -> Screen Fonts
+
+sourceinsight中文字体间距过大问题：
+Options->Style Properties 在左边Style Name下找到Comment Multi Line.在其右边对应的Font属性框下的Font Name中选“Pick...” 设置为宋体、常规、小四。确定，退回Style Properties界面，Size设为10。最后设置Clolors框下Foreground，点“Pick...”选择一种自己喜欢的颜色就OK了。
+3.4.     SVN
+安装：
+1. 设置SVN_EDITOR环境变量:             export SVN_EDITOR=vim
+2. 创建并且import项目,需要root:       su
+     cd /home/svn/application
+     svnadmin create /home/svn/application/AppReleaseBranch
+     svn  import  /home/eric/147  file:///home/svn/application/AppReleaseBranch
+     chown -R eric:eric AppReleaseBranch/
+     chmod -R 777 AppReleaseBranch/
+     vi /conf/svnserve.conf
+     anon-access = write      //允许匿名用户写操作。
+3. 启动svn服务
+     svnserve -d -r /home/svn/     //-d表示后台运行       -r/svn/指定根目录是/svn/
+4. 访问SVN:
+     svn://192.168.1.111/application/gui
+     svn://192.168.1.111/application/gui_WinVersion
+     svn://192.168.1.111/application/gui_TY_Base
+5. linux环境导出
+     svn checkout svn:///home/svn/appllication/gui  /home/eric/ hisi
+svn checkout svn://192.168.1.111/appllication/gui //创建并导出到gui目录
+svn update -r 1230 hisi
+
+3.5.     开机加速
+ 禁止VMARE的相关服务;禁止VMWARE虚拟机授权验证服务，因为我们是破解版
+禁止ipsec秘钥服务和网络位置识别服务和打印机与文件共享服务
+windows自动更新服务，和360的冗余了，应该要关闭掉
+windows客户体验改善计划任务，关闭
+vmware虚拟机的托盘服务
+vmware虚拟机的相关服务
+程序兼容助手服务，开着也没有用
+清理所有的系统垃圾和痕迹，清理C盘无用的东西，然后再次备份。比如"用户"目录和360浏览器的缓存
+Win7启动文件夹中，可以通过在程序快捷方式名称中增加数字”x.”的前缀来控制启动顺序
+我的文档移动到D盘下，防止一键恢复的时候老的文件丢失和反复搬移。
+3.6.     FTP工具
+使用flashfxp就比较方便了，属性->参数选择->常规->默认下载文件夹，选择使用最后的工作文件夹。
+4.     Ubuntu虚拟机
+4.1.     基本的操作
+安装过程需要先创建一个root用户：sudo passwd root
+sudo su命令可以在ubuntu下切换到root；su 或者su eric或者exit切换回去
+
+对于13.10的ubuntu桌面系统，如果想在开机的时候直接进入字符界面，那可以：
+     编辑文件 /etc/init/lightdm.conf，在第12行附近，原句“ and runlevel [!06]” 改为“ and runlevel [!026]”即可，之后如果希望文本界面切换到图形界面，执行：startx 就可以了！root用户登录才会有完整的GUI
+
+Fedora11, 编辑文件/etc/inittab 2. 找到这一行id:5:initdefault改为id:3:initdefault,然后开机就不会进入GUI模式。非GUI模式节省资源。
+
+我们需要支持ssh功能： apt-get install openssh-server
+
+Win7后台启动虚拟机
+"C:\Program Files (x86)\VMware\VMware Workstation\vmrun.exe" stop
+"F:\ubuntu_virtual\Ubuntu.vmx" nogui
+"C:\Program Files (x86)\VMware\VMware Workstation\vmrun.exe" start
+     "F:\ubuntu13_virtual\Ubuntu13.vmx" nogui
+虚拟机中建立两个桥接模式的网卡，使用静态IP，1和2两个网段。这样可以兼顾公司和家里两个环境。
+4.2.     数据共享方式
+4.2.1.     SAMBA方式
+虚拟机上建立samba服务器，并存放源代码，编译的时候性能高，但是win7上只能通过映射访问，本机vmware网络访问速度虽然快，但看代码需要先开虚拟机很不方便。
+
+安装samba：
+sudo apt-get install samba samba-common system-config-samba python-glade2 gksu
+启动图形界面添加samba用户和目录，然后重启samba
+sudo restart smbd && sudo restart nmbd
+
+Windows环境命令行建立映射，有时候更方便：
+net use Z: \\192.168.1.231\eric eric /USER:eric 命令行下建立映射，可以写入批处理文件
+net use Z: /D     断开映射
+4.2.2.     Win7共享文件夹(放弃)
+win7允许GUEST用户远程访问共享文件夹，需要修改本地组策略文件： 运行gpedit.msc，找到“计算机配置”-“Windows设置”-“安全设置”-“本地策略”-“用户权限分配”，"拒绝从网络访问此计算机"选项中，去掉Guest。
+
+Ubuntu Linux上需要安装cifs支持： apt-get install cifs-utils。
+mount.cifs //192.168.1.233/SoftDev /home/eric/code username=eric,password=eric,nounix,noserverino,iocharset=cp936,uid=eric,gid=eric,dir_mode=0755,file_mode=0755
+
+但是linux环境下QT编译遇到多种失败，无法解决。放弃这种方式。
+
+4.2.3.     Vmware Tool共享文件夹
+这种方式应该是效率最高的一种，应该是直接读写硬盘共享。
+
+使用vmware tools来实现共享文件夹，代码存放在win7，linux通过共享访问。
+Win7下用svn下载和编辑，服务器上编译，这样方便很多。
+
+版本使用ubuntu13.10 和vmware 10.0.3，参看https://github.com/rasa/vmware-tools-patches
+1 - Run: apt-get install dkms linux-headers-$(uname -r) build-essential psmisc git
+2 - Run: git clone https://github.com/rasa/vmware-tools-patches.git
+3 - Run: cd vmware-tools-patches/patches
+4 - Remove every folder except "vmhgfs".
+5 - Get the last version of VMwareTools clicking on VMWare Bar > VM > Install/Reinstall VMWare Tools. It will open a virtual CD containing the "tar" file.
+6 - Copy VMwareTools-9.6.2-1688356.tar.gz to "vmware-tools-patches" folder.
+7. Maybe need to remove previous install
+     apt-get remove open-vm-dkms
+     apt-get remove open-vm-toolbox
+     apt-get remove open-vm-tools
+8 - On "vmware-tools-patches" folder, run: ./untar-and-patch-and-compile.sh
+9-  删除打印相关的配置
+cd /etc/init
+rm vmware-tools-thinprint.conf
+10- 可能需要手动启动vmware服务
+cd /etc/vmware-tools
+./services.sh restart
+并且使用Df命令查看加载的目录
+会看到类似于 .host:/        186165244 47665228 138500016  26% /mnt/hgfs
+
+编译时遇到一个syslog.h的解析错误问题，发现是由于代码中有一个SysLog.h的头文件，编译时使用共享文件夹的话两者就会混淆，大小写没有区分清楚。
+
+ln -s /mnt/hgfs/softdev/  在/home/eric下建立一个名称为softdev的软连接，更加方便访问。
+4.2.4.     Fedora11 共享文件夹
+当前使用的是vmware 10 版本。
+
+安装过程：  （1）虚拟机的下拉菜单VM->Install VMware Tools...  （2）出现一个对话框，单击“install”  （3）在Linux的桌面上出现一个光盘的图标，名叫“VMware Tools”， （4）选择里面那个叫“VMwareTools-?????.tar.gz”的文件，打开，解压缩到自己选择的目录下。  （5）打开“终端”，用cd命令进入到解压的文件里，在命令行输入：./vmware-install.pl 接着一路回车，就可以了。  这时你可以发现鼠标可以在Windows和Linux中自由进出了。  等安装完毕后，可以查看mnt文件夹里面会多了一个叫“hgfs”的文件夹，这下面的文件夹里就可以放Windows与Linux需要共享的文件了，OK！
+设置共享文件夹  （1） 选择虚拟机的下拉菜单VM-->setting->options->shared folders （2） 选择在windows中要共享的文件夹。  （3）安装完毕后，可以查看在Linux中根目录mnt文件夹里面会多了一个叫“hgfs”的文件夹，这下面的文件夹里就可以放Windows与Linux需要共享的文件了
+ln -s /mnt/hgfs/softdev/ /home/eric/shared 在自己的目录中建立一个快捷访问方式。
+
+安装了NFS之后，共享文件夹不加载了，看了看，VMWARE tool不知道怎么取消了共享文件夹，在工具里面重新添加使能就可以嘞 。
+4.2.5.     NFS简单配置
+sudo apt-get install nfs-kernel-server
+/etc/exports文件中增加 /home/eric 192.168.*.*(rw,sync,no_root_squash)
+
+Fedora11环境下：
+yum install portmap nfs-utils
+/etc/init.d/nfs start
+
+NFS如果不可用，记得查看防火墙是否未取消NFS访问限制
+chkconfig --level 345 nfs on  设置NFS开机启动
+
+4.3.     建立HISI开发环境
+4.3.1.     Hi3535 SDK安装
+1、后续操作需要root用户权限
+   在"Hi3535_V100R001***/01.software/board"目录下，您可以看到一个 Hi3535_SDK_Vx.x.x.x.tgz 的文件，该文件就是Hi3535的软件开发包。
+2、解压缩SDK包
+   在linux服务器上（或者一台装有linux的PC上，主流的linux发行版本均可以），使用命令：tar -zxf Hi3535_SDK_Vx.x.x.x.tgz ，解压缩该文件，可以得到一个Hi3535_SDK_Vx.x.x.x目录。
+3、展开SDK包内容
+   返回Hi3535_SDK_Vx.x.x.x目录，运行./sdk.unpack(请用root或sudo权限执行)将会展开SDK包打包压缩存放的内容，请按照提示完成操作。如果您需要通过WINDOWS操作系统中转拷贝SDK包，请先运行./sdk.cleanup，收起SDK包的内容，拷贝到新的目录后再展开。
+4、在linux服务器上安装交叉编译器
+    1）安装uclibc交叉编译器（注意，需要有sudo权限或者root权限）：
+进入Hi3535_SDK_Vx.x.x.x/osdrv/toolchain/arm-hisiv100nptl-linux目录，运行chmod +x cross.install，然后运行./cross.install即可。
+    2）安装glibc交叉编译器（注意，需要有sudo权限或者root权限，暂时不支持glibc版本）：
+进入Hi3535_SDK_Vx.x.x.x/osdrv/toolchain/arm-hisiv200-linux目录，运行chmod +x cross.install，然后运行./cross.install即可。
+    3）执行source /etc/profile， 安装交叉编译器的脚本配置的环境变量就可以生效了，或者请重新登陆也可。
+
+5.  按照下面过程建立HISI环境，最好能够做成脚本来执行。
+mnt_qt.tar解压到 /mnt/qt下，这是QT的编译环境
+home_eric_hisi.tar 解压到 /home/eric下；home_karry_hisi3535.tar解压到 /home下
+usr_local_siplib.tar解压到/usr/local 目录下。
+
+genext2fs mkimage copy到可路径 /usr/bin下
+6、编译salve模式的osdrv
+     source /etc/profile
+     cd /home/eric/Hi3535_SDK_Slave/osdrv
+     make OSDRV_CROSS=arm-hisiv200-linux CHIP=hi3535 RLS_VERSION=release PCI_MODE=slave all
+7. 编译产生新的image
+     cd /home/eric/Hi3535_SDK_Slave/osdrv/pub/rootfs_glibc
+     ./mkimg.rootfs . .. test cramfs-initrd
+     mv ../test.cramfs.initrd ../cramfs.initrd.img
+
+/etc/profile文件中添加：
+export QMAKESPEC="/mnt/qt/hisi_directfb/mkspecs/qws/linux-arm-hisi-g++"
+export PATH="$PATH: /opt/hisi-linux/x86-arm/arm-hisiv200-linux/target/bin"
+建立新的虚拟机，发现qmake无法正常工作，增加 export QMAKESPEC="qws/linux-arm-hisi-g++"，然后就会加载适合的qmake.conf
+
+QT，为了避免重复编译MOC文件，应该减少头文件的重复包含。
+
+/~~~~~~~~~~~~~~~~~~~~~~~~PC常用软件~~~~~~~~~~~~~~~~~~~~~~~~/
+     熟悉 Beyond compare 工具所有用法。
+     如何一键将网页保存成pdf格式。安装 adobe acrobat，一键保存网页。
+     TortoiseSVN jperf网络性能和吞吐量测试工具 wireshark抓包 HostsTool翻GOOGLE
+     格式工厂 photoshop 完美解码/MPlayer
+/~~~~~~~~~~~~~~~~~~~~~~~~软件使用习惯~~~~~~~~~~~~~~~~~~~~~~~~/
+
+
+/~~~~~~~~~~~~~~~~~~~~~~~~移动设备使用习惯~~~~~~~~~~~~~~~~~~~~~~~~/
+     微信中可关联印象笔记。
+     发送邮件到  954570949.a5dee53@m.yinxiang.com，会在笔记中产生一个名称为主题的笔记。
+     CodeNavigator 阅读代码。
+     Splashtop Streamer : 通过手机远程控制电脑
+     mht2html : 自动转换网页格式
+     360极速浏览器基于Chrome浏览器? 有丰富的扩展，如图片下载插件(比迅雷的下载所有链接方便)。
+     PPT可以打包零散的信息。UltraISO打包短小的视频到ISO文件中。
+     交叉网线使用：
+       需要安装 NWLINK IPX/SPX/NeBIOS Compatible Transport Protocol 协议，才能支持交叉网线。
+         高级TCP/IP设置里启用TCP/IP上的NetBios，是否就可以了呢？
+       关闭“防火墙，可能加快共享访问的速度； 使用同一个工作组； 控制面板-管理工具-服务，选“SERVER”，看是否已开启
+     D盘一个文件夹，包含所有常用软件的快捷方式，不同client间切换的时候方便，桌面保持最常用的。
+     常用且重要的文件夹，增加1-9.这样的前缀，就会按顺序排在所有文件夹的前面，方便工作。
+3. 手机小米盒子和PAD常用软件
+     ES文件浏览器
+     ES应用锁      名片扫描软件 ZArchiver解压
+     设备之间快速传输： 茄子快传 文件大师 飞鸽传书 快牙 等，
+          茄子快传在电脑和手机(PAD)间无线传送数据，直接接入热点传输数据，传送完毕后自动连接到原先的网络
+          中间不需要经过路由器， 速度就快
+          电脑之间，通过交叉网线可以超快速的共享数据
+/~~~~~~~~~~~~~~~~~~~~~~~~移动设备使用~~~~~~~~~~~~~~~~~~~~~~~~/
+小米路由器mini，挂上移动硬盘，路由器和其他设备的传输是直接连接，速度快；长期挂机的话需要处理好硬盘盒的硬盘休眠。
+     PAD可以使用蓝牙键盘鼠标
+
+/~~~~~~~~~~~~~~~~~~~~~~~~小问题~~~~~~~~~~~~~~~~~~~~~~~~/
+PC有两个网卡，一个有线一个无线，我希望能够通过无线上网，本地连接做内部应用。
+     无线网卡自动获取IP,或者手动设置网关；本地连接不要设置网关。
+      另外，看看无线自动获取到的IP是什么网段的，本地连接不能与之一个网段。
+
+家里新换的TP-LINK路由器从MODEM获取不到动态IP，原来是因为网段不一样，真是坑爹啊
+
+GOOGLE:
+     http://www.gobaidugle.com   http://www.google52.com   https://guge.in    https://g.yh.gs
+     http://www.googlestable.cn    http://www.googto.com
+
+
