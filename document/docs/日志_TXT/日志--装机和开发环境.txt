@@ -1,5 +1,0 @@
-装机和开发环境
-ubuntu16.10升级到17.04    sudo apt update && sudo apt dist-upgrade
-
-
-

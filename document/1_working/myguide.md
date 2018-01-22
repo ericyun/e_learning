@@ -6,7 +6,15 @@
 | 初版 | 2017/09/14 | 员清观 | 常用操作索引，尽量简短方便使用 |
 
 ----
-## 99 处理中问题
+## 12 文档管理
+date -d "$(awk -F. '{print $1}' /proc/uptime) second ago" +"%Y-%m-%d %H:%M:%S"
+cd /home/yuan/work/qsdkdoc/psdocs
+python -m SimpleHTTPServer 8080
+cd ~/work/techdoc
+python -m SimpleHTTPServer 8080
+
+安装firefox插件，剪辑网页到zim： zim clip
+## 11 处理中问题
 
 **sublime插件**
 
@@ -445,6 +453,12 @@ gerrit代码提交相关事项：
 http://27.115.104.234:8810/redmine/news/68
 1.公司新生产的EVB开发板入库时全部归属上海平台硬件开发部门管理，并由EVB开发板管理负责人对EVB开发板进行统一编号，并记入《固定资产表》中予以管理。
 2.各部门相关使用者对EVB开发板的领用需求需在redmine填写相关申请信息并最终由副总经理批准后，方可由EVB开发平台管理部门发放
+
+http://180.168.66.238:8810/redmine/projects
+http://180.168.66.238:8810/redmine/projects/evb_application
+    EVB开发平台申请登记
+    审批流程：申请人申请->预审人预审->审核人审批
+
 ```
 
 **1**
@@ -476,6 +490,11 @@ sudo apt-get install libc6:i386 libncurses5:i386 libstdc++6:i386
 ```
 **服务器编译环境**
 ```bash
+123456
+ssh eric.yun@192.168.0.14
+sudo  mount  -t nfs  192.168.0.14:/exchange  ~/work/mynfs
+sudo chown -R yuan.yuan ./mynfs/
+
 Dear Eric  ,
 服务器上的 repo已经安装好了，请重新尝试一遍；
 至于nfs加载到本地后，你需要通过sudo来进行写操作；为了方便，你可以在加载的目录下创建一个work目录，然后将该目录的属主改一下；
@@ -506,6 +525,8 @@ http://owncloud.in.infotm.com/index.php		账户：eric.yun     密码：123456
 
 ```
 
+### 1.3 git下载
+
 **Gerrit账户**
 ```bash
 1)  gerrit登录地址
@@ -526,7 +547,7 @@ git config --global user.email "eric.yun@infotm.com"
 git config --global user.name "eric.yun"
 6)  可以通过repo下载git分支了；
 repo init -u ssh://eric.yun@gerrit.in.infotm.com:29418/manifest/buildroot -b dev_qsdk
-repo sync -c
+repo sync -c &
 repo start --all dev_qsdk
 #TF360项目
 repo init -u ssh://eric.yun@gerrit.in.infotm.com:29418/manifest/buildroot -b dev_qsdk_dv

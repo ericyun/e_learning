@@ -1,4 +1,4 @@
-PREVIEW与SPLIT
+## PREVIEW与SPLIT
 NVR才会需要新的轮训，这将会基于映射后的通道。每个屏幕一个轮训，而不是每个芯片一个轮训
     回放的时候，也需要一个映射。默认值为单屏模式。
     双屏模式，两个屏幕暂时使用同一个轮训机制就好。
@@ -15,11 +15,11 @@ NVR才会需要新的轮训，这将会基于映射后的通道。每个屏幕�
 
      split相关处理: 3到2的映射，确定mode，index，m
 
-3536动态通道管理机制
+## 3536动态通道管理机制
      3536引入了动态解码通道，屏幕切换分割的时候，需要先销毁然后重初始化屏幕的通道，有实际视频流的时候才会真正动态创建通道
      接口文档：
 
-欧帝云图代码：
+## 欧帝云图代码：
      照最新的定义每个屏幕应该支持固定的通道范围，根据通道号唯一确定屏幕号；3535四屏幕版本却不是如此，通道号只能确定是在哪一个芯片上，至于屏幕号，还需要根据分割和INDEX来确定。
           既然机制差别这么大，最好独立存放代码。
      现有的机制基于两次映射机制，所有的解码器都有前者映射，所有的NVR都有后者映射：
@@ -80,7 +80,7 @@ Codec_Map_16 和 Codec_Map这两个数组来建立映射。
                所以，大家使用两套映射机制好了，不要强求糅合在一起。
      avenc模块， TwentyFiveChannel GetDecSubScreenIndex GetMappedSplitIndex
 
-双路解码器解码 DecV2PreviewDeal
+## 双路解码器解码 DecV2PreviewDeal
      VencProcessOneFrame VencProcessMoreFrame -- 》 VencProcessFrameInner
      PreviewRecreate
 非双路解码器解码 CustomPreviewDeal
@@ -111,7 +111,7 @@ PreviewSetSplit4Dec DecPreviewSplitWin GetSplit4StreamType SetSplit4StreamType  
       函数暂时先不处理双击全屏的问题，但是之后需要保证修改。
       16画面下的全屏某个通道的功能，需要考虑如何实现。
 
-现在笔记本型号, 华硕FL5900U
+## 现在笔记本型号, 华硕FL5900U
 增加一个自动检测程序，开机的时候自动检查系统，看是否存在问题：
     1. 检查各个分区的剩余空间，如果全满，报警
     2. 检查日志，看是否存在关键错误，如果有，报警
@@ -125,7 +125,7 @@ PreviewSetSplit4Dec DecPreviewSplitWin GetSplit4StreamType SetSplit4StreamType  
 
 根据搜索代码：    machinetype    = NVR_3U_16_64_HISI3536
 
-与CODEC部分接口定义：
+## 与CODEC部分接口定义：
 3536解码器：双屏模式: 0-15通道永远在第一屏；16-31通道永远在第二屏
 
 单画面：split_1                    //32/1=32

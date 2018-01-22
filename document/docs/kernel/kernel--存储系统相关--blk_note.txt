@@ -2,7 +2,7 @@ BLK NOTE
 按照文档标准来定义。大文件关联函数有优势，但手动翻阅困难，需要建立索引。
 
 本文档索引信息：(名称必须唯二)
-- block_core.c解析入口
+- blk-core.c解析入口
 - genhd.c文件入口
 - mmc blk dev_ops入口:
 - mpage_writepages解析Plug
@@ -13,7 +13,7 @@ BLK NOTE
 整个block.c文件，基本上就是mmc_blk_probe()函数相关的调用(包括设置的回调函数)值得看看，文件上半部分可以忽略。
 block模块的头文件是blkdev.h
 
-block_core.c解析入口
+blk_core.c解析入口
      mmc_blk_probe
           大部分其他函数都和probe的过程有关系。
      其他一些和request queue有关的函数
@@ -458,7 +458,7 @@ static void blk_delay_work(struct work_struct *work)
      struct request_queue *q = container_of(work, struct request_queue, delay_work.work);
      __blk_run_queue(q);
 
-mmc_bus_probe入口:永远放在最下，方便索引
+## 1. mmc_bus_probe入口:永远放在最下，方便索引
 设置bio到request的cb函数blk_queue_bio,request到queue的cb函数mmc_request_fn，queue线程和queue分发request的cb函数mmc_blk_issue_rq
 分配和初始化gendisk,添加磁盘设备和各分区设备
 为设备分配一个request_queue,
@@ -471,11 +471,11 @@ static struct bus_type mmc_bus_type = {//bus.c
      .pm = &mmc_bus_pm_ops,          .match = mmc_bus_match,//总是返回１
      .probe = mmc_bus_probe,
 };
-static int __init mmc_blk_init(void)     //注册mmc块设备驱动
+### 1.1 static int __init mmc_blk_init(void)     //注册mmc块设备驱动
      res = register_blkdev(MMC_BLOCK_MAJOR, "mmc");
      res = mmc_register_driver(&mmc_driver);
           drv->drv.bus = &mmc_bus_type;     return driver_register(&drv->drv);     //注册mmc总线驱动，带bus的ops
-static int mmc_bus_probe(struct device *dev)　//解析mmc块设备probe函数，dev在mmc_rescan中检测为struct mmc_card设备
+### 1.2 static int mmc_bus_probe(struct device *dev)　//解析mmc块设备probe函数，dev在mmc_rescan中检测为struct mmc_card设备
      struct mmc_driver *drv = to_mmc_driver(dev->driver);
      struct mmc_card *card = mmc_dev_to_card(dev);
      return drv->probe(struct mmc_card * card);     //mmc_blk_probe
@@ -500,7 +500,7 @@ static int mmc_bus_probe(struct device *dev)　//解析mmc块设备probe函数�
                     retval = sysfs_create_link(&disk_to_dev(disk)->kobj, &bdi->dev->kobj,"bdi");
                     disk_add_events(disk);
           foreach(part) mmc_add_disk(part_md);//添加分区
-struct mmc_blk_data *mmc_blk_alloc_req(struct mmc_card *card,struct device *parent,
+### 1.3 struct mmc_blk_data *mmc_blk_alloc_req(struct mmc_card *card,struct device *parent,
      struct mmc_blk_data *md = kzalloc(sizeof(struct mmc_blk_data), GFP_KERNEL);//分配一个struct mmc_blk_data
      md->disk = alloc_disk(perdev_minors);-->alloc_disk_node()//分配struct gendisk，mmc_blk_data就是gendisk的扩展
           struct gendisk *disk = kmalloc_node(sizeof(struct gendisk),GFP_KERNEL | __GFP_ZERO, node_id);
@@ -551,7 +551,4 @@ int __device_attach(struct device_driver *drv, void *data)
                dev->driver = drv;
                if (dev->bus->probe)     ret = dev->bus->probe(dev);//先尝试总线probe,mmc就是，但转头调用了driver的probe
                else     ret = drv->probe(dev);
-
-
-
 

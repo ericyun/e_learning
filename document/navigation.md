@@ -1,6 +1,6 @@
 # My MainPage
 
-[Common Docs.](a_common/temp.txt)
+[Common Docs.](1_working/myguide.md)
 
 [Evernote Docs.]()
 

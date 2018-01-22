@@ -1,5 +1,5 @@
-回写机制
-文件缓存回写的时机
+# 回写机制
+## 文件缓存回写的时机
 (1)周期性回写，周期为dirty_writeback_interval，默认5s；
 (2)块设备首次出现脏数据；
 (3)脏页达到限额，包括dirty_bytes、dirty_background_bytes、dirty_ratio、dirty_background_ratio；
@@ -169,7 +169,7 @@ redirty_tail
      中断次数优化不多，但是占用资源情况呢？访问mmc的时候，是否是阻塞的呢？
      q3f上测试看看，改变回写算法，是否有所优化。
 
-sync.c
+## sync.c
 SYSCALL_DEFINE1(fsync, unsigned int, fd) --> do_fsync(fd, 0);
 SYSCALL_DEFINE1(fdatasync, unsigned int, fd) --> do_fsync(fd, 1);
      struct fd f = fdget(fd);

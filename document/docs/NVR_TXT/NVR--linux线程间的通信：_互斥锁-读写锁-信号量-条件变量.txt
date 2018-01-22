@@ -12,7 +12,7 @@ Linux系统中的线程间通信方式(线程间只需要同步，不需要数�
 
 线程间的通信目的主要是用于线程同步，所以线程没有像进程通信中的用于数据交换的通信机制。数据交换可以直接通过互斥锁和全局变量的。
 
-互斥锁
+## 3 互斥锁
 初始化, 静态分配的话，只能使用默认的属性，而对于动态分配的，我们可以设置属性。
      如果互斥锁变量是静态分配的，static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
      如果互斥锁是动态分配的，int pthread_mutex_init(pthread_mutex_t * mutex, const pthread_mutexattr_t * attr);
@@ -28,7 +28,7 @@ Linux系统中的线程间通信方式(线程间只需要同步，不需要数�
      int pthread_mutexattr_init(pthread_mutexattr_t *attr);
 pthread_cond_t 使用，对之所有的调用都需要进入临界区，尤其是destroy，曾经遇到过bug
 
-读写锁
+## 2 读写锁
 
 条件变量
 条件变量是用来等待而不是用来上锁的。条件变量用来自动阻塞一个线程，直到某特殊情况(某个全局变量发生改变了)发生为止。通常条件变量和互斥锁同时使用；否则，可能要使用频繁的轮训来实现功能。
@@ -79,8 +79,8 @@ pthread_mutex_unlock(&videohandle_mutex);
 
 NetConnect_SendEvent  函数，好像最适合使用；当前用的是信号量+互斥锁机制，条件变量应该是可以实现无缝切换，后者不行。
 
-信号量
-#include <semaphore.h>
+## 1 信号量
+//#include <semaphore.h>
 
 数据类型为结构sem_t，它本质上是一个长整型的数。信号量是在多线程环境中共享资源的计数器。
 sem_timedwait 应该定义一个inline函数比较方便，第一参数为sem，第二参数为s单位的时间。
@@ -105,7 +105,7 @@ sem_init() 初始化一个定位在 sem 的匿名信号量。value 参数指定�
 返回值: sem_init() 成功时返回 0；错误时，返回 -1，并把 errno 设置为合适的值。
 错误:     EINVAL -- value 超过 SEM_VALUE_MAX。          ENOSYS -- pshared 非零，但系统还没有支持进程共享的信号量。
 
-有名信号量
+### 1.1 有名信号量
 sem_open
 函数说明：创建并初始化有名信号灯。
 头文件：#include <semaphore.h>     函数原型：sem_t *sem_open(const char *name,int oflag,mode_t mode,unsigned int value);

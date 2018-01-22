@@ -1,8 +1,13 @@
 
+exFAT
+Init Infotm ION driver v2014.02.08
+
+
+公司腾讯企业邮箱。微信客户端绑定密码 : ooErfMAnogvZeWtL
+
 date -d "$(awk -F. '{print $1}' /proc/uptime) second ago" +"%Y-%m-%d %H:%M:%S"
 cd /home/yuan/work/qsdkdoc/psdocs
 python -m SimpleHTTPServer 8080
-
 
 git clone https://github.com/dosfstools/dosfstools.git
 
@@ -11,6 +16,8 @@ git clone https://github.com/dosfstools/dosfstools.git
 
 product目录的介绍：　  ./configs目录
 
+1. 提高启动阶段CPU频率从516提升到696，启动时间减少80ms左右
+2. 
 sudo apt-get install build-essential libncurses5-dev bison flex texinfo zlib1g-dev gettext libssl-dev autoconf wget 
 Ubuntu默认的shell是dash，它跟buildroot的脚本有些不兼容。可以用下面的命令切换到bash：
 $sudo dpkg-reconfigure dash
