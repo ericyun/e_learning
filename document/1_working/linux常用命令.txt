@@ -1,5 +1,13 @@
 # 大标题：每天一条linux常用命令
 
+sudo sync
+sudo mount /dev/sdb1 ./temp
+sudo cp ./tools/player_320_g1.json ./temp
+sudo cp ./tools/320_264_15fps_1track.mkv ./temp
+sudo cp ./output/build/qlibvplay-1.0.0/vplayer ./temp
+#sudo cp ./tools/rec_16000_16000_2_32_0_1_256_0.wav ./temp
+#sudo cp -fr ./tools/16000 ./temp
+
 
 ## 13.命令
 **格式**    

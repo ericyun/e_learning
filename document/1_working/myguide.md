@@ -526,6 +526,7 @@ http://owncloud.in.infotm.com/index.php		账户：eric.yun     密码：123456
 ```
 
 ### 1.3 git下载
+**个人github账户**
 
 **Gerrit账户**
 ```bash
@@ -558,6 +559,8 @@ repo init -u ssh://eric.yun@gerrit.in.infotm.com:29418/manifest/buildroot -b qsd
 repo sync -c
 repo start develop --all
 ./tools/setproduct.sh　#选择qipc_38f/sc2235/1080P.json
+
+repo init -u ssh://eric.yun@gerrit.in.infotm.com:29418/manifest/buildroot -b qsdk_ipc_dev
 
 #所有git分支，checkout某特定tag.直接所有分支创建tag的命令格式呢？
 repo forall -c "git checkout tag_before_merge_2.2.0"
