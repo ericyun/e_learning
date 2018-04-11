@@ -1,20 +1,64 @@
 ﻿# 基于BuildRoot集成开发环境
 
-### 修订记录
+
+
+## 0 修订记录
 | 修订说明 | 日期 | 作者 | 额外说明 |
 | --- |
 | 初版 | 2017/09/14 | 员清观 | 常用操作索引，尽量简短方便使用 |
 
-----
+---
 ## 12 文档管理
+
+```shell
 date -d "$(awk -F. '{print $1}' /proc/uptime) second ago" +"%Y-%m-%d %H:%M:%S"
+
 cd /home/yuan/work/qsdkdoc/psdocs
 python -m SimpleHTTPServer 8080
 cd ~/work/techdoc
 python -m SimpleHTTPServer 8080
+```
 
 安装firefox插件，剪辑网页到zim： zim clip
-## 11 处理中问题
+## 11 基本markdown语法
+
+```
+1. 数字加.加空格，有序列表
+2. -+*加上空格，无序列表
+3. >引用
+4. >>引用中的引用
+5. 文字链接：　
+[不如](http://bruce-sha.github.io "不如的博客")
+6. 图片链接：
+![GitHub Mark](http://github.global.ssl.fastly.net/images/modules/logos_page/GitHub-Mark.png "GitHub Mark")
+7. 索引引用方式链接：
+[不如][1]
+[1]:http://bruce-sha.github.io  //文档末尾定义
+8. 自动链接
+<http://ibruce.info>
+9. ```代码块
+c / cpp / python / shell /
+10. 字体字号颜色
+<font face="黑体">我是黑体字</font>
+<font face="微软雅黑">我是微软雅黑</font>
+<font face="STCAIYUN">我是华文彩云</font>
+<font color=#0099ff size=12 face="黑体">黑体</font>
+<font color=#00ffff size=3>null</font>
+<font color=gray size=5>gray</font>
+11. 段落缩进
+半方大的空白&ensp;或&#8194;看，飞碟
+全方大的空白&emsp;或&#8195;看，飞碟
+不断行的空白格&nbsp;或&#160;看，飞碟
+&emsp;&emsp;段落从此开始
+12. 表格
+13. <!-- 注释 -->
+14. 转义字符
+\\ 反斜杠  \` 反引号  \* 星号   \_ 下划线  \{\} 大括号  \[\] 中括号
+\(\) 小括号  \# 井号 \+ 加号 \- 减号 \. 英文句号 \! 感叹号
+15.
+```
+
+<!-- 注释 -->
 
 **sublime插件**
 
@@ -378,7 +422,7 @@ find . -type f -exec wc -l {} \;	#找出当前目录下所有的普通文件并�
 /*注意后面的分号。它是用来给find做标记用的。find在解析命令的时候，要区分给定的参数是要传给自己的还是要传给command命令的。所以find以分号作为要执行命令所有参数的结束标记。命令返回值为0则返回true。在exec参数指定的执行命令中，可以使用{}符号表示当前find找到的文件名;注意使用分号的时候前面要加转移字符\，因为分号也是bash的特殊字符，所以bash会先解释它*/
 find . \( -name a.out -o -name '*.o' -o -name 'core' \) -exec rm {} \; #删除多个类型的文件
 find /etc/ -name "passwd" -exec cp {} {}.bak \;	#自动备份
-find /etc/ -name "passwd" -exec echo {} \+    
+find /etc/ -name "passwd" -exec echo {} \+
 /*对于command {} ;格式来说，每找到一个文件就执行一遍相关命令，而command {} +格式的意思是说，先执行find，找到所有符合条件的文件之后，将每个文件作为命令的一个参数传给命令执行，exec指定的命令实际上只被执行了一次。这样用的限制也是不言而喻的：{}只能出现一次*/
 ```
 ----
@@ -484,7 +528,7 @@ subversion zip unzip git tree libncurses5-dev bzip2 lib32z1 lib32gcc1
 安装如下的文件
 sudo dpkg --add-architecture i386
 sudo apt-get update
-#sudo apt-get upgrade
+sudo apt-get upgrade
 sudo apt-get install p7zip-full p7zip-rar squashfs-tools micro-httpd subversion zip unzip git tree libncurses5-dev bzip2 lib32z1 lib32gcc1 build-essential
 sudo apt-get install libc6:i386 libncurses5:i386 libstdc++6:i386
 ```
@@ -500,8 +544,8 @@ Dear Eric  ,
 至于nfs加载到本地后，你需要通过sudo来进行写操作；为了方便，你可以在加载的目录下创建一个work目录，然后将该目录的属主改一下；
 举例：
 假设本地mount挂载的目录为/mnt  ，本地用户为eric
-#sudo mkdir -p /mnt/work
-#sudo chown -R eric.eric /mnt/work
+sudo mkdir -p /mnt/work
+sudo chown -R eric.eric /mnt/work
 执行完以上操作后，你可以不用sudo也可以对该文件夹有写权限；
 ```
 **文档分享**
@@ -533,8 +577,8 @@ http://owncloud.in.infotm.com/index.php		账户：eric.yun     密码：123456
 1)  gerrit登录地址
 直接登录  http://gerrit.in.infotm.com		账户：eric.yun    	密码：637004
 2)  登录后请先在gerrit上注册你的邮件地址(gerrit邮件注册链接应该已经通过邮件发送到你的邮箱，请登录邮箱查收)，然后在本地生成public key ;
-#ssh-keygen
-#cat ~/.ssh/id_rsa.pub
+//ssh-keygen
+//cat ~/.ssh/id_rsa.pub
 将id_rsa.pub的内容复制到gerrit中的 setting>>>ssh public keys>>>add
 3)验证public key是否生效 ;
 ssh -p 29418 eric.yun@gerrit.in.infotm.com
@@ -550,11 +594,11 @@ git config --global user.name "eric.yun"
 repo init -u ssh://eric.yun@gerrit.in.infotm.com:29418/manifest/buildroot -b dev_qsdk
 repo sync -c &
 repo start --all dev_qsdk
-#TF360项目
+//TF360项目
 repo init -u ssh://eric.yun@gerrit.in.infotm.com:29418/manifest/buildroot -b dev_qsdk_dv
 repo sync -c
 repo start --all dev_qsdk_dv
-#sc2235 BU2项目
+//sc2235 BU2项目
 repo init -u ssh://eric.yun@gerrit.in.infotm.com:29418/manifest/buildroot -b qsdk_ipc_dev
 repo sync -c
 repo start develop --all
@@ -562,7 +606,7 @@ repo start develop --all
 
 repo init -u ssh://eric.yun@gerrit.in.infotm.com:29418/manifest/buildroot -b qsdk_ipc_dev
 
-#所有git分支，checkout某特定tag.直接所有分支创建tag的命令格式呢？
+//所有git分支，checkout某特定tag.直接所有分支创建tag的命令格式呢？
 repo forall -c "git checkout tag_before_merge_2.2.0"
 ```
 <p align='center'><img src='ssh_key_id_rsa_pub.jpg' /></p>
@@ -583,10 +627,10 @@ Gitbook文档： [http://platsoft.in.infotm.com/misc/gitbook/_book/]
 repo init -u ssh://eric.yun@gerrit.in.infotm.com:29418/manifest/psdocs -b master
 repo sync
 repo start master --all
-#编辑md工具, retext & haroopad
+//编辑md工具, retext & haroopad
 sudo apt-get install retext
 
-#本地预览文档,预览方式： http://127.0.0.1:8080
+//本地预览文档,预览方式： http://127.0.0.1:8080
 sudo apt-get install python2.7
 cd /home/yuan/work/qsdkdoc/psdocs
 python -m SimpleHTTPServer 8080
