@@ -1,0 +1,229 @@
+LINUX消息队列
+是linux/uinx上提供关于一些进程间通信方式的信息，包括共享内存，消息队列，信号
+ipcs用法
+ipcs -a  是默认的输出信息 打印出当前系统中所有的进程间通信方式的信息
+ipcs -m  打印出使用共享内存进行进程间通信的信息
+ipcs -q   打印出使用消息队列进行进程间通信的信息
+ipcs -s  打印出使用信号进行进程间通信的信息
+
+
+MMB LEAK(pid=4026): 0x67881000, 65536 bytes, 'AO(1,1) CirBuf'
+     MMB LEAK(pid=2876): 0xC68B9000, 32768 bytes, '' mmz_userdev_release: mmb<0xC68B9000> mapped to userspace 0x40f50000 will be force unmaped!
+     使用pipe和消息队列的时候，出现类似的错误。可能socket也有类似的错误。
+
+Posix和System V
+对Unix发展做出重大贡献的两大主力AT&T的贝尔实验室及BSD（加州大学伯克利分校的伯克利软件发布中心）在进程间通信方面的侧重点有所不同。前者对Unix早期的进程间通信手段进行了系统的改进和扩充，形成了“system V IPC”，通信进程局限在单个计算机内；后者则跳过了该限制，形成了基于套接口（socket）的进程间通信机制。
+
+Posix 是 RMS 倡导的，正在流行。
+System V 是正宗的 UNIX V，可是，早挂了，后来的 SunOS 和 SCO 是继承。
+
+POSIX是IEEE为要在各种UNIX操作系统上运行的软件，而定义API的一系列互相关联的标准的总称，其正式称呼为IEEE 1003，而国际标准名称为ISO／IEC 9945。此标准源于一个大约开始于1985年的项目。POSIX这个名称是由理查德·斯托曼应IEEE的要求而提议的一个易于记忆的名称。它基本上是Portable Operating System Interface（可移植操作系统界面）的缩写，而X则表明其对Unix API的传承。
+
+Linux基本上逐步实现了POSIX兼容，但并没有参加正式的POSIX认证。
+
+微软的Windows NT至少部分实现了POSIX兼容。
+
+当前的POSIX文档分为三个部分：POSIX Kernel API，POSIX命令和工具集，及POSIX一致性测试
+
+System V消息队列
+
+#include <sys/types.h>     #include <sys/ipc.h>     #include <sys/msg.h>
+
+消息队列可以认为是一个消息链表，System V 消息队列使用消息队列标识符标识。具有足够特权的任何进程都可以往一个队列放置一个消息，具有足够特权的任何进程都可以从一个给定队列读出一个消息。在某个进程往一个队列写入消息之前，并不需要另外某个进程在该队列上等待消息的到达。System V 消息队列是随内核持续的，只有在内核重起或者显示删除一个消息队列时，该消息队列才会真正被删除。可以将内核中的某个特定的消息队列画为一个消息链表，如下图所示：
+
+  对于系统中没个消息队列，内核维护一个msqid_ds的信息结构：
+
+struct msqid_ds
+  {
+    struct msqid_ds {
+    struct ipc_perm msg_perm;
+    struct msg *msg_first;      /* first message on queue,unused  */
+    struct msg *msg_last;       /* last message in queue,unused */
+    __kernel_time_t msg_stime;  /* last msgsnd time */
+    __kernel_time_t msg_rtime;  /* last msgrcv time */
+    __kernel_time_t msg_ctime;  /* last change time */
+    unsigned long  msg_lcbytes; /* Reuse junk fields for 32 bit */
+    unsigned long  msg_lqbytes; /* ditto */
+    unsigned short msg_cbytes;  /* current number of bytes on queue */
+    unsigned short msg_qnum;    /* number of messages in queue */
+    unsigned short msg_qbytes;  /* max number of bytes on queue */
+    __kernel_ipc_pid_t msg_lspid;   /* pid of last msgsnd */
+    __kernel_ipc_pid_t msg_lrpid;   /* last receive pid */
+};
+
+ 1）int msgget(key_t key, int msgflg)     参数key是一个键值，由ftok获得；msgflg参数是一些标志位。该调用返回与健值key相对应的消息队列描述字。
+在以下两种情况下，该调用将创建一个新的消息队列：
+     如果没有消息队列与健值key相对应，并且msgflg中包含了IPC_CREAT标志位；key参数为IPC_PRIVATE；
+参数msgflg可以为以下：IPC_CREAT、IPC_EXCL、IPC_NOWAIT或三者的或结果。
+调用返回：成功返回消息队列描述字，否则返回-1。
+注：参数key设置成常数IPC_PRIVATE并不意味着其他进程不能访问该消息队列，只意味着即将创建新的消息队列。
+注：key_t ftok( const char * fname, int id )     fname就是你指定的文件名（已经存在的文件名），一般使用当前目录，如：
+          key_t key; key = ftok(".", 1); 这样就是将fname设为当前目录。id是子序号。虽然是int类型，但是只使用8bits(1-255）。
+
+2）int msgrcv(int msqid, struct msgbuf *msgp, int msgsz, long msgtyp, int msgflg);
+该系统调用从msgid代表的消息队列中读取一个消息，并把消息存储在msgp指向的msgbuf结构中。
+msqid为消息队列描述字；消息返回后存储在msgp指向的地址，msgsz指定msgbuf的mtext成员的长度（即消息内容的长度），msgtyp为请求读取的消息类型；读消息标志msgflg可以为以下几个常值的或：
+IPC_NOWAIT 如果没有满足条件的消息，调用立即返回，此时，errno=ENOMSG
+IPC_EXCEPT 与msgtyp>0配合使用，返回队列中第一个类型不为msgtyp的消息
+IPC_NOERROR 如果队列中满足条件的消息内容大于所请求的msgsz字节，则把该消息截断，截断部分将丢失。
+msgrcv手册中详细给出了消息类型取不同值时(>0; <0; =0)，调用将返回消息队列中的哪个消息。
+msgrcv()解除阻塞的条件有三个：消息队列中有了满足条件的消息；msqid代表的消息队列被删除；调用msgrcv（）的进程被信号中断；
+调用返回：成功返回读出消息的实际字节数，否则返回-1。
+
+3）int msgsnd(int msqid, struct msgbuf *msgp, int msgsz, int msgflg);
+向msgid代表的消息队列发送一个消息，即将发送的消息存储在msgp指向的msgbuf结构中，消息的大小由msgze指定。
+对发送消息来说，有意义的msgflg标志为IPC_NOWAIT，指明在消息队列没有足够空间容纳要发送的消息时，msgsnd是否等待。造成msgsnd()等待的条件有两种：
+当前消息的大小与当前消息队列中的字节数之和超过了消息队列的总容量；
+当前消息队列的消息数（单位"个"）不小于消息队列的总容量（单位"字节数"），此时，虽然消息队列中的消息数目很多，但基本上都只有一个字节。
+msgsnd()解除阻塞的条件有三个：不满足上述两个条件，即消息队列中有容纳该消息的空间；msqid代表的消息队列被删除；调用msgsnd（）的进程被信号中断；
+调用返回：成功返回0，否则返回-1。
+
+4）int msgctl(int msqid, int cmd, struct msqid_ds *buf);
+该系统调用对由msqid标识的消息队列执行cmd操作，共有三种cmd操作：IPC_STAT、IPC_SET 、IPC_RMID。
+IPC_STAT：该命令用来获取消息队列信息，返回的信息存贮在buf指向的msqid结构中；
+IPC_SET：该命令用来设置消息队列的属性，要设置的属性存储在buf指向的msqid结构中；可设置属性包括：msg_perm.uid、msg_perm.gid、msg_perm.mode以及msg_qbytes，同时，也影响msg_ctime成员。
+IPC_RMID：删除msqid标识的消息队列；
+调用返回：成功返回0，否则返回-1。
+
+#define     DISK_MESG_SIZE      16
+#define     DISK_MESQUEUE_TOKEN "/opt/usr/envr_ruby_hisi"
+
+    int     mqid, oflag = IPC_CREAT|0666;
+    key_t   key;
+    struct msgbuf   diskmesg;
+    struct msqid_ds mqinfo;
+
+    if((key = ftok(DISK_MESQUEUE_TOKEN, 0)) == -1)
+    {
+        perror("ftok() error");
+        exit(-1);
+    }
+    if((g_DiskMesQueueid = msgget(key,oflag)) == -1)
+    {
+        perror("msgget() error");
+        exit(-1);
+    }
+
+    diskmesg.mtype = 1;
+    strcpy(diskmesg.mtext, "hello!");
+    if(msgsnd(g_DiskMesQueueid,&diskmesg, DISK_MESG_SIZE, 0) == -1)
+    {
+       perror("msgsnd() error");
+       exit(-1);
+    }
+
+    if(msgctl(g_DiskMesQueueid,IPC_STAT,&mqinfo) == -1)
+    {
+        perror("msgctl() error");
+       exit(-1);
+    }
+    printf("read-write: %03o,cbytes = %lu,qnum =%lu,qbytes = %lu\n",
+           mqinfo.msg_perm.mode & 0777,(long int) mqinfo.msg_cbytes,
+           (long int)mqinfo.msg_qnum,(long int) mqinfo.msg_qbytes);
+
+    if(msgrcv(g_DiskMesQueueid,&diskmesg_2, DISK_MESG_SIZE, 1, 0) == -1)
+    {
+       perror("msgsnd() error");
+       exit(-1);
+    }
+
+    DISK_LOG(DBMOD_0, DBLEV_0, "Receive Message:%s\n", diskmesg_2.mtext);
+
+    if(msgctl(g_DiskMesQueueid,IPC_RMID,NULL) == -1)
+    {
+        perror("msgctl() error");
+        exit(-1);
+    }
+
+POSIX消息队列
+
+man 7 mq_overview  需要linux支持mqueue文件系统然后     mkdir /dev/mqueue      mount -t mqueue none /dev/mqueue
+消息队列可以认为是一个消息链表，某个进程往一个消息队列中写入消息之前，不需要另外某个进程在该队列上等待消息的达到，这一点与管道和FIFO相反。Posix消息队列与System V消息队列的区别如下：
+1. 对Posix消息队列的读总是返回最高优先级的最早消息，对System V消息队列的读则可以返回任意指定优先级的消息。
+2. 当往一个空队列放置一个消息时，Posix消息队列允许产生一个信号或启动一个线程，System V消息队列则不提供类似的机制。
+
+Posix消息队列操作函数如下：
+
+#include    <mqueue.h>
+typedef int mqd_t;
+mqd_t mq_open(const char *name, int oflag, ... /* mode_t mode, struct mq_attr *attr */);
+返回： 成功时为消息队列描述字，出错时为－1。        功能： 创建一个新的消息队列或打开一个已存在的消息的队列。
+
+#include    <mqueue.h>
+int mq_close(mqd_t mqdes);
+返回： 成功时为0，出错时为-1。     功能： 关闭已打开的消息队列。
+
+#include    <mqueue.h>
+int mq_unlink(const char *name)     返回： 成功时为0，出错时为－1     功能： 从系统中删除消息队列。
+
+#include    <mqueue.h>
+int mq_getattr(mqd_t mqdes, struct mq_attr *attr);
+int mq_setattr(mqd_t mqdes, const struct mq_attr *attr, struct mq_attr *attr);
+均返回：成功时为0， 出错时为-1
+
+每个消息队列有四个属性：
+struct mq_attr
+{
+    long mq_flags;      /* message queue flag : 0, O_NONBLOCK */
+    long mq_maxmsg;     /* max number of messages allowed on queue*/
+    long mq_msgsize;    /* max size of a message (in bytes)*/
+    long mq_curmsgs;    /* number of messages currently on queue */
+};
+
+每个消息均有一个优先级，它是一个小于MQ_PRIO_MAX的无符号整数
+#define MQ_PRIO_MAX 32768
+
+#include    <mqueue.h>
+int mq_send(mqd_t mqdes, const char *ptr, size_t len, unsigned int prio);
+返回：成功时为0，出错为－1
+ssize_t mq_receive(mqd_t mqdes, char *ptr, size_t len, unsigned int *priop);
+返回：成功时为消息中的字节数，出错为－1
+
+消息队列的限制：
+MQ_OPEN_MAX : 一个进程能够同时拥有的打开着消息队列的最大数目
+MQ_PRIO_MAX : 任意消息的最大优先级值加1
+
+#include    <mqueue.h>
+int mq_notify(mqd_t mqdes, const struct sigevent *notification);
+返回： 成功时为0，出错时为－1
+功能： 给指定队列建立或删除异步事件通知
+
+union sigval
+{
+    int sival_int;      /* Integer value */
+    void *sival_ptr;    /* pointer value */
+};
+
+struct sigevent
+{
+    int     sigev_notify;   /* SIGEV_{ NONE, ISGNAL, THREAD} */
+    int     sigev_signo;    /* signal number if SIGEV_SIGNAL */
+    union sigval sigev_value;   /* passed to signal handler or thread */
+    void    (*sigev_notify_function)(union sigval);
+    pthread_attr_t *sigev_notify_attribute;
+};
+
+异步信号安全函数
+#include    <signal.h>
+int sigwait(const sigset_t *set, int *sig);
+
+Posxi实时信号
+信号可划分为两大小组：
+1. 其值在SIGRTMIN和SIGRTMAX之间（包括两者在内）的实时信号。
+2. 所有其他信号：SIGALRM， SIGINT， SIGKILL等等。
+
+void func(int signo, siginfo_t *info, void *context);
+
+typedef struct
+{
+    int     si_signo;   /* same value as signo argument */
+    int     si_code;    /* SI_{USER, QUEUE, TIMER, ASYNCIO, MESGQ}*/
+    union sigval si_value;    /* integer or pointer value from sender */
+} siginfo_t;
+
+线程之间，现在我常用的一种方式是使用sem_timedwait和共享内存，然后通过全局变量在不同线程之间传递信息，由于需要同步，可能会要求变量只在一个线程中修改，在另外的线程中查询。或者需要sem_post和修改变量的时候在临界区中进行，查询变量与对应的原子操作同样在临界区中。
+
+也可以使用消息队列，之前担心的主要是，如同一个IPC的添加删除修改等动作多条消息实际有效的只有最后一条。
+
+定时消息的实现： 增加添加和删除定时的函数接口，这样，可以很好的替代sem_timedwait的机制。
+

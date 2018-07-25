@@ -1,0 +1,176 @@
+## PREVIEW与SPLIT
+NVR才会需要新的轮训，这将会基于映射后的通道。每个屏幕一个轮训，而不是每个芯片一个轮训
+    回放的时候，也需要一个映射。默认值为单屏模式。
+    双屏模式，两个屏幕暂时使用同一个轮训机制就好。
+
+一个支持64路IPC的NVR，多屏机制下，一些逻辑的定义
+    解码器现有的代码结构中，m更像是一个附赠的参数而已
+    1. 一个CODEC对象，按照通道管理，是playcmd_Ex的，CODEC的
+        数据结构: codec_chan    4*16    playcmd_Ex
+    2. 四个屏幕对象，按照2维数组管理，4个屏幕的总的有效通道的通道号
+        数据结构: logic_chan    4*64    每个节点存放对应的 ipc_chan
+    3. 一个是有效的IPC通道的通道号，每个屏幕对应其中的一个范围，这样处理好点不？这个通道号需要吗？
+        数据结构: ipc_chan        64        videoChannelsManager
+            每个节点存放对应的 logic_chan
+
+     split相关处理: 3到2的映射，确定mode，index，m
+
+## 3536动态通道管理机制
+     3536引入了动态解码通道，屏幕切换分割的时候，需要先销毁然后重初始化屏幕的通道，有实际视频流的时候才会真正动态创建通道
+     接口文档：
+
+## 欧帝云图代码：
+     照最新的定义每个屏幕应该支持固定的通道范围，根据通道号唯一确定屏幕号；3535四屏幕版本却不是如此，通道号只能确定是在哪一个芯片上，至于屏幕号，还需要根据分割和INDEX来确定。
+          既然机制差别这么大，最好独立存放代码。
+     现有的机制基于两次映射机制，所有的解码器都有前者映射，所有的NVR都有后者映射：
+          解码器屏幕号和通道号--》IPC视频连接通道号(基于屏幕和index和通道等定义方式)--》CODEC解码通道号(
+          NVR屏幕号和通道号--》IPC视频连接通道号--》CODEC解码通道号
+     全部映射，只有特殊的型号才需要定义：
+        1.单屏NVR，只需要后者映射就好，无前者
+        2.单屏解码器，只需要前者就好，后者为简单的线性映射。
+        3.3535的特殊在于，4个屏幕无法支持16画面，而为了支持9画面，每个屏幕9个通道。而后来需要集中两个屏幕的资源强行支持16画面，所以才需要后者映射。
+        4.3536的特殊在于，引入了动态解码通道，屏幕切换分割的时候，需要先销毁然后重初始化屏幕的通道，有实际视频流的时候才会真正动态创建通道我也
+
+我也不需要关心双芯片还是单芯片，只需要管理相应的通道，并且要求通道显示通道号，就可以了。
+
+NVR如果需要支持两个屏幕，那么后者的映射也会是必须的。
+     第二个屏，如何显示通道号，
+
+SplitCombine 函数第一个参数，
+DecGetOutWindow 函数需要为3536_2HD修改一下。
+GetSplitChanRange 计算指定屏幕的开始结束通道号。
+GetSplitMapChanRange 函数可以取消掉了；
+
+Screen_Number 现在也只是用于3536. PreviewStaticDecInit在3536之外的平台，Screen_Number为1，而其他平台也不会调用到3536的几个函数，不会使用ScreenManager数据结构。
+
+3536平台，TwentyFiveChannel，解码器每个屏幕16画面，
+     单屏解码器第一映射chan和index直接return初始值，所以没有限制16画面的问题，第二映射idnex为0，chan限定为index为0时候的通道范围
+     多屏解码器第一映射没有问题，限定为16画面，第二映射chan应该为完全线性，index为0。
+     双屏NVR控制的中心是IPC视频通道， 第一映射控制轮训，第二映射控制显示
+
+显示：按顺序显示每一个屏幕，每个屏幕的管理，还是按照之前的机制，对么？
+     VencProcessOneFrameCustomPreviewDeal 按照有效解码通道个数，轮训确定该通道是否需要显示，if((pFrameManage->previewMaskFlag != 0) || (pFrameManage->bUseSubChan == -1))就不显示
+               pFrameManage = &videoChannelsManager[channel];
+               这样看来，videoChannelsManager应该是每个屏幕定义一个了。现在，如果是解码器，
+          videoChannelsManager[channel]中previewMaskFlag应该继续保持原有的逻辑，但是它应该可以被多个屏幕的画面切割函数修改
+     如果可以显示，那么直接使用目标通道号ID应该就直接包含了屏幕和屏幕内通道号，videoChannelsManager中保存一个映射通道号就好了。
+          记住，这个屏幕内通道号不是最大的解码路数，而是轮训的最大数，它最可能最合理的值是MAX_VIDEO_CHN_NUM。
+          双屏模式下，NVR需要在最后一步读取这个映射；解码器，
+     VencProcessOneFrame 的 参数channel，是IPC通道，现有机制就是挨个视频通道确认显示情况，无论是NVR还是解码器；但是新的机制下，
+          每个屏幕应该有一个最大预览偏移路数，控制IPC不要太过分散分配，比如MAX_VIDEO_CHN_NUM，另外定义一个数组，所有屏幕的预览通道，同样可以在一个数据结构中实现。
+
+          videoChannelsManager 应该继续对应于时间的视频通道，
+     GUI的切换画面命令，先转换为屏幕和通道号，然后控制对应的通道号。
+
+     Dec_GetMapdChanel 这是解码器模块自己使用的函数，通过screen和chan来计算应该对应的IPC通道；
+          TwentyFiveChannel 这是avenc模块的再次映射，IPC通道映射到CODEC通道，使用了
+Codec_Map_16 和 Codec_Map这两个数组来建立映射。
+
+两个数组是为了支持3535的4屏幕解码器9分割和16分割功能，最好是分开用两个函数来处理。3536的处理，单独函数处理算了，
+     不再和之前的代     码混合在一起了。
+
+     解码器模块，可以查看 Dec_GetMapdChanel Dec_GetSplitIndex 两个函数的调用，这是通道映射的骨干。
+          Dec_GetMapdChanel  这是解码器模块自己使用的函数，返回的通道号用来添加删除IPC等。如果全部修改，需要修改IPC管理的相关函数，添加中间接口罢了。
+               AU_prev(nChan);               NetConnect_SendEvent               IPCRemoveDevice   IPCAddDevice   PlayZoom
+               Dec_GetSplitIndex 和 Dec_GetMapdChanel 函数本身就是我们的标准接口，给出屏幕和偏移通道要求映射处理。
+
+          不然的话，NVR和解码器分开定义好了，解码器就按照现有的INDEX和通道来管理，NVR部分按照屏幕的方式来管理。
+               逻辑上，两者是不同的，解码器没有录像信息，所以交换通道没有任何限制；而NVR因为有录像，录像通道不能乱交换，否则导致录像混乱。
+               处理上，解码器直接在客户端交换通道来交换预览；而NVR需要定义映射的机制，所以，两者的机制必然是不同的。
+               所以，大家使用两套映射机制好了，不要强求糅合在一起。
+     avenc模块， TwentyFiveChannel GetDecSubScreenIndex GetMappedSplitIndex
+
+## 双路解码器解码 DecV2PreviewDeal
+     VencProcessOneFrame VencProcessMoreFrame -- 》 VencProcessFrameInner
+     PreviewRecreate
+非双路解码器解码 CustomPreviewDeal
+     VencProcessFrameInner 函数中，channel参数对应的是实际的IPC视频流，函数中判断这个通道是否需要显示，然后判断显示到什么位置就好了。
+     判断依据：
+          if((pFrameManage->previewMaskFlag != 0) || (pFrameManage->bUseSubChan == -1))
+
+MaxVideoChanNum
+TwentyFiveChannel 函数需要修改，原先为所有通道一个playcmd_Ex数组，现在为每个屏幕一个playcmd_Ex数组，是否应该恢复呢？
+     最方便的做法是恢复。因为这和codec的定义方式是一致的。
+
+3536的双芯片，应该也是需要调用原有的数据接口，所以，
+MemPoolPreviewThread_2 函数中，
+
+画面切换的时候，调用 PreviewDecoderUpdate ，先PreviewDecoderDestroy销毁屏幕所有的解码通道，然后PreviewDynamicDecInit重新初始化解码通道。
+
+暂时先放弃NVR部分的设计好了，不然没有办法前行了。
+
+好像可以暂时不修改解码器部分代码，仅仅修改avenc和preview部分通道的管理，按照和karry已经约定的内容修改就是了。先仅仅修改单芯片双屏幕模式
+     之后再处理更加复杂的部分。
+
+现在云图版本可通过远程命令配置4分割下使用主码流还是子码流解码。性定义命令 NET_DECV2_4S_SET_SPLIT4_STREAM_TYPE(147)，参数为4字节长度，value为0(使用主码流)或者1(使用子码流).
+
+4屏幕版本DEC后续开发，需要关注的函数
+    Dec_RemoveAndAddIPC Dec_CruiseSplitInit      DecV2PreviewDeal     DecIPC_AjustDstScreenAndChan
+
+PreviewSetSplit4Dec DecPreviewSplitWin GetSplit4StreamType SetSplit4StreamType      DEC_MAX_SPLITNUM_PER_SCREEN
+      函数暂时先不处理双击全屏的问题，但是之后需要保证修改。
+      16画面下的全屏某个通道的功能，需要考虑如何实现。
+
+## 现在笔记本型号, 华硕FL5900U
+增加一个自动检测程序，开机的时候自动检查系统，看是否存在问题：
+    1. 检查各个分区的剩余空间，如果全满，报警
+    2. 检查日志，看是否存在关键错误，如果有，报警
+    3. 增加tcpdump程序，出现视频流相关问题，可以方便的直接抓包，并且和现有trace一体分析
+    trace信息，应该按照模块和级别，可以分开保存到不同的文件中，同时，可以按照时间等信息，合并到一个文件。
+
+3535解码器：双屏模式: codec通道36，我的上层逻辑64个通道，所以才会有一个 Index_Map_SPLIT9_4Screen 的数组建立映射。
+    相应的，下层的分割的index也是按照32/36通道来计算的，
+    TwentyFiveChannel 映射通道 Codec_Map 数组
+    GetMappedSplitIndex  映射index Index_Map_SPLIT9_4Screen 数组
+
+根据搜索代码：    machinetype    = NVR_3U_16_64_HISI3536
+
+## 与CODEC部分接口定义：
+3536解码器：双屏模式: 0-15通道永远在第一屏；16-31通道永远在第二屏
+
+单画面：split_1                    //32/1=32
+主片：index0  ======== channel 0    //第一屏: （兼容index0-index15）
+      index16 ======== channel 16  //第二屏；（兼容index16-index31）
+
+4画面：split_4                        //32/4=8
+主片：index0 ======== channel 0---3   //第一屏:（兼容index0-index3）
+      index4 ======== channel 16---19 //第二屏；(兼容index4-index7）
+
+9画面：split 9                        //32/9=3
+主片：index0 =======channel 0---8     //第一屏:（兼容index0-index1）
+      index2 ======= chanel  16---24  //第二屏:（兼容index2-index3）
+
+16画面：split 16                      //32/16=2
+主片：index0 ======= channel 0---15   //第一屏
+      index1 ======= chanel  16---31  //第二屏
+
+3536：双芯4屏模式
+    0-15通道永远在第一屏，    16-31通道永远在第二屏；    32-47通道永远在第三屏；48-63通道永远在第四屏；
+
+单画面：split_1                    //32/1=32
+主片：index0 ======== channel 0    //第一屏: （兼容index0-index15）
+      index16 ======== channel 16  //第二屏；（兼容index16-index31）
+从片：index32 ======== channel 32  //第一屏；（兼容index32-index47）
+      index48 ======== channel 48  //第二屏；（兼容index48-index63）
+
+4画面：split_4                         //32/4=8
+主片：index0 ======== channel 0---3    //第一屏:（兼容index0-index3）
+      index4 ======== channel 16---19  //第二屏；(兼容index4-index7）
+从片：index8 ======== channel 32---35  //第一屏:（兼容index8-index11）
+      index12 ========channel 48---51  //第二屏；(兼容index12-index15）
+
+9画面：split 9                         //32/9=3
+主片：index0 ======= channel 0---8     //第一屏:（兼容index0-index1）
+      index2 ======= chanel  16---24   //第二屏:（兼容index2-index3）
+从片：index4 ======== channel 32---40  //第一屏:（兼容index4-index5）
+      index6 ========channel 48---56  //第二屏；(兼容index6-index7）
+
+16画面：split 16                        //32/16=2
+主片：index0 ======= channel 0---15     //第一屏
+      index1 ======= chanel  16---31   //第二屏
+从片：index2 ======== channel 32---47  //第一屏:
+      index3 ========channel 48---63  //第二屏；
+
+3536：双芯2屏模式：(每个芯片一屏，支持64分割)
+0-63通道永远在第一屏， 64-128通道永远在第二屏；
+

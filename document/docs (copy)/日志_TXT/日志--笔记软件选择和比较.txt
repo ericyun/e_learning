@@ -1,0 +1,31 @@
+# 笔记软件选择和比较
+
+~~~~
+## cherrytree,　感觉更加适合做临时的短期的不成熟的频繁修改和变更结构的信息管理．长期存档，还是应该用md来完成．
+~~~~
+## Evernote 
+记录、阅读都并非 Evernote 区别与其他产品的地方，那么什么才是这个产品的杀手级功能呢？答案是：收集。
+完成了最基本的收集，却并没有更进一步。
+Evernote 是一款知识管理工具为前提。Evernote 缺乏从收集的信息里提取要点、形成知识进而构建知识框架的能力。
+
+
+印象笔记更适合做便签性质的管理，知识管理有点麻烦，尤其在ubuntu上没有方便的目录树等，
+大量信息的知识管理，尝试使用mdwiki.
+
+部署笔记很简单，可以用git或者dropbox，我是用btsync，相关方法可以看我的博客，通过btsync就可以做到本地与服务器上的内容同步。由于不能自动生成索引，所以需要手动在index.md文件里添加，具体方法可参考雾里看花的博客，这里不再重复叙述。
+
+
+编译环境，统一的文档，自己的文档，另外建立一个单独的git仓库代码如何管理呢？
+本地的文档，可以通过pthon脚本，从网页上来方便的本地浏览，基于md文档。
+
+mdwiki支持将文档托管在github, dropbox, googledriver, VPS中，支持markdown.
+    需要dropbox的公共文件夹功能。
+
+
+个人开发管理:
+qq爱家登录github,
+cd /home/yuan/work/y_learning
+git clone https://github.com/ericyun/e_learning.git
+/*创建了新的e_learning目录*/
+
+

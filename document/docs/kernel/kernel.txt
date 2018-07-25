@@ -1,11 +1,6 @@
 KERNEL
 (id_1<<2)+id_2 的括号是必须的， <<的优先级实在是低的离谱
 
-工作队列 workqueue 软中断 bottom half
-host->card_workqueue = alloc_workqueue("dw-mci-card",WQ_MEM_RECLAIM | WQ_NON_REENTRANT, 1);
-INIT_WORK(&host->card_work, dw_mci_work_routine_card);
-INIT_DELAYED_WORK(&host->card_work, dw_mci_work_routine_card);
-queue_work(host->card_workqueue, &host->card_work);
 
 linux命令行参数解析 支持长选项的命令行解析
 #include <stdio.h>
@@ -39,17 +34,3 @@ int main(int argc, char *argv[])
   }
   return 0;
 }
-
-tasklet
-struct tasklet_struct{
-     struct tasklet_struct *next;
-     unsigned long state;
-     atomic_t count;
-     void (*func)(unsigned long);
-     unsigned long data;
-}my_test_tasklet;
-static void dw_mci_tasklet_func(unsigned long priv){ }
-tasklet_init(&my_test_tasklet, dw_mci_tasklet_func, (unsigned long)host);
-tasklet_schedule(&my_test_tasklet); //调用
-tasklet_kill(&my_test_tasklet);
-

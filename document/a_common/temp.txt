@@ -17,8 +17,8 @@ git clone https://github.com/dosfstools/dosfstools.git
 product目录的介绍：　  ./configs目录
 
 1. 提高启动阶段CPU频率从516提升到696，启动时间减少80ms左右
-2. 
-sudo apt-get install build-essential libncurses5-dev bison flex texinfo zlib1g-dev gettext libssl-dev autoconf wget 
+2.
+sudo apt-get install build-essential libncurses5-dev bison flex texinfo zlib1g-dev gettext libssl-dev autoconf wget
 Ubuntu默认的shell是dash，它跟buildroot的脚本有些不兼容。可以用下面的命令切换到bash：
 $sudo dpkg-reconfigure dash
 修改之后，仍然需要同步之后才能用mdwiki来访问．
@@ -202,7 +202,7 @@ video部分重要模块:　isp(sensor相关) ipost(sensor相关) jenc(图片编�
           解析文件簇链表，文件写入之后，对其做性能分析。
      动态数据打印: 用于分析文件系统流程ｔｒａｃｅ
           文件写入过程中，打印簇号等信息，辅助性能分析，做代码优化之前先弄清楚系统是如何运作的。
-如何得到上层函数的名称和指针等信息?或者编译器, 
+如何得到上层函数的名称和指针等信息?或者编译器,
 记录某个函数被每个上层调用多少次,就足以知道一些关键信息了.
 
 ##
@@ -220,7 +220,7 @@ ipcs -q　获取消息队列表，然后根据key，进入队列，从队列中�
 !!!  System Load和Kernel Profiling模块也是基于tick的，用于计算系统负荷和进行内核性能剖析  !!!
 衡量cpu开销的方式,如果中间没有线程切换: 1.高精度的时间计算 2.tick个数 3.idle线程执行时间,计算然后主动调度礼让CPU.
 
- 
+
 所有的技术和论坛，都是用　ericyun110322    ，密码　为　中学　１　３　３　应该不会需要用大写的情况，而且也够长。１１个字符刚好。
 无所谓的普通的信息和公司密码，爱家，快捷方便为主啊
 印象笔记非常重要的个人笔记， 活期通, 微信，支付宝，银行等相关的
@@ -232,4 +232,3 @@ ipcs -q　获取消息队列表，然后根据key，进入队列，从队列中�
 重要的模块, 重要的流程, 本身就应该是可追踪的; 比如cpu 内存 中断 dma等重要的系统资源
 包括coredump snap性质的, 重要的全局变量等.
 重现问题相关, 以前mspd完整流程所有可能输入信息, 重超1G的调试信息.
-
