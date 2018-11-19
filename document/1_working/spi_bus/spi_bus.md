@@ -397,7 +397,6 @@ gpio中断依赖于先后顺序，需要先启动xr871，然后启动c20,这样c
 	２．c20发送第一个packet,没有中断，阻塞，然后rw测试开始，xr871产生中断，c20 resume发送．
 		或者，c20可以反复不断的发送，反正没有中断使能也会被阻塞住．
 
-
 ![q3fevb_con1](pic_dir/q3fevb_con1.png)
 
 Q3F_EVB上GPIO21-RGB0_DATA18，链接到XR871_EVB上PA6

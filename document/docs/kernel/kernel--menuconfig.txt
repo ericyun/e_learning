@@ -110,4 +110,3 @@ CONFIG_MODULES 必须跟上面的Kconfig中保持一致，系统会自动添加C
 最后执行：make zImage modules就会被编译进内核中
 
 问题： 所有的Makefile是如何组织在一起的
-
