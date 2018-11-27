@@ -887,6 +887,87 @@ core_initcall(cma_init_reserved_areas);
 ```
 
 ## 2.8 slab分配器
+Gcc的内建函数 __builtin_constant_p 用于判断一个值是否为编译时常数，如果参数EXP 的值是常数，函数返回 1，否则返回 0。如 `kzalloc(sizeof(struct fr_buf), GFP_KERNEL);`这样的编译时就能确定malloc大小的调用，最后都会使用slab来分配，避免了内存碎片。可以通过`cat /proc/slabinfo`查看实际应用状况。下面解析基于SLUB的SLAB分配器：
+```cpp
+void *kmalloc(size_t size, gfp_t flags)
+	if (__builtin_constant_p(size)) {
+		if (size > KMALLOC_MAX_CACHE_SIZE)
+			return kmalloc_large(size, flags);
+
+		if (!(flags & GFP_DMA)) {
+			int index = kmalloc_index(size);
+			if (!index)	return ZERO_SIZE_PTR;
+			return kmem_cache_alloc_trace(kmalloc_caches[index],flags, size);
+		}
+	}
+	return __kmalloc(size, flags);
+
+//kmem，高速缓存机制的slab,有cache相关的机制，不同于kmalloc的普通缓存slab
+struct kmem_cache *kmem_cache_create(const char *name, size_t size, size_t align, unsigned long flags, void (*ctor)(void *));
+void kmem_cache_destroy(struct kmem_cache *s);
+void *kmem_cache_alloc(struct kmem_cache *cachep, gfp_t flags);
+void kmem_cache_free(struct kmem_cache *cachep, void *objp);
+```
+
+**kmem_cache_init出书啊slab分配器**
+kmem_cache_init函数用于初始化slab分配器. 它在内核初始化阶段(start_kernel)、伙伴系统启用之后调用. 但在多处理器系统上，启动CPU此时正在运行, 而其他CPU尚未初始化. kmem_cache_init采用了一个多步骤过程，逐步激活slab分配器：
+- kmem_cache_init创建系统中的第一个slab缓存, 以便为kmem_cache的实例提供内存. 为此, 内核使用的主要是在编译时创建的静态数据. 实际上, 一个静态数据结构(initarray_cache)用作per-CPU数组. 该缓存的名称是cache_cache.
+- kmem_cache_init接下来初始化一般性的缓存, 用作kmalloc内存的来源. 为此, 针对所需的各个缓存长度, 分别调用kmem_cache_create. 该函数起初只需要cache_cache缓存已经建立.
+
+
+```cpp
+void __init kmem_cache_init(void)
+	static __initdata struct kmem_cache boot_kmem_cache, boot_kmem_cache_node;
+	if (debug_guardpage_minorder())		slub_max_order = 0;
+	kmem_cache_node = &boot_kmem_cache_node;	kmem_cache = &boot_kmem_cache;
+	create_boot_cache(kmem_cache_node, "kmem_cache_node", sizeof(struct kmem_cache_node), SLAB_HWCACHE_ALIGN);
+	register_hotmemory_notifier(&slab_memory_callback_nb);
+	slab_state = PARTIAL;/* Able to allocate the per node structures */
+	create_boot_cache(kmem_cache, "kmem_cache", offsetof(struct kmem_cache, node) + nr_node_ids * sizeof(struct kmem_cache_node *), SLAB_HWCACHE_ALIGN);
+	kmem_cache = bootstrap(&boot_kmem_cache);
+	kmem_cache_node = bootstrap(&boot_kmem_cache_node);
+
+	|--> create_kmalloc_caches(0);//void __init create_kmalloc_caches(unsigned long flags)
+		int i
+		for (i = 8; i < KMALLOC_MIN_SIZE; i += 8) {
+			int elem = size_index_elem(i);
+			if (elem >= ARRAY_SIZE(size_index))	break;
+			size_index[elem] = KMALLOC_SHIFT_LOW;
+		}
+		if (KMALLOC_MIN_SIZE >= 64) {
+			for (i = 64 + 8; i <= 96; i += 8)
+				size_index[size_index_elem(i)] = 7;
+		}
+		if (KMALLOC_MIN_SIZE >= 128) {
+			for (i = 128 + 8; i <= 192; i += 8)
+				size_index[size_index_elem(i)] = 8;
+		}
+		for (i = KMALLOC_SHIFT_LOW; i <= KMALLOC_SHIFT_HIGH; i++) {
+			if (!kmalloc_caches[i]) {
+				kmalloc_caches[i] = create_kmalloc_cache(NULL, 1 << i, flags);
+			}
+			if (KMALLOC_MIN_SIZE <= 32 && !kmalloc_caches[1] && i == 6)
+				kmalloc_caches[1] = create_kmalloc_cache(NULL, 96, flags);
+			if (KMALLOC_MIN_SIZE <= 64 && !kmalloc_caches[2] && i == 7)
+				kmalloc_caches[2] = create_kmalloc_cache(NULL, 192, flags);
+		}
+		slab_state = UP; /* Kmalloc array is now usable */
+
+		for (i = 0; i <= KMALLOC_SHIFT_HIGH; i++) {
+			struct kmem_cache *s = kmalloc_caches[i];
+			if (s) {
+				char *n = kasprintf(GFP_NOWAIT, "kmalloc-%d", kmalloc_size(i));	s->name = n;
+			}
+		}
+		for (i = 0; i <= KMALLOC_SHIFT_HIGH; i++) {
+			struct kmem_cache *s = kmalloc_caches[i];
+			if (s) {
+				int size = kmalloc_size(i);
+				char *n = kasprintf(GFP_NOWAIT, "dma-kmalloc-%d", size);
+				kmalloc_dma_caches[i] = create_kmalloc_cache(n, size, SLAB_CACHE_DMA | flags);
+			}
+		}
+```
 
 **创建per_cpu**<br>
 ```cpp
