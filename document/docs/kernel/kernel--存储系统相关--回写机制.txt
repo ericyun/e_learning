@@ -178,7 +178,3 @@ SYSCALL_DEFINE1(fdatasync, unsigned int, fd) --> do_fsync(fd, 1);
                struct inode *inode = filp->f_mapping->host;
                res = generic_file_fsync(filp, start, end, datasync);
                err = sync_mapping_buffers(MSDOS_SB(inode->i_sb)->fat_inode->i_mapping);
-
-
-
-

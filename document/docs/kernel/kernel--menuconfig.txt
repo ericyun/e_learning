@@ -1,10 +1,6 @@
-MENUCONFIG
-http://blog.csdn.net/haoel/article/details/2886
-
 dev_qsdk根目录下Makefile：  include buildroot/main.mk，这是编译
 
-make menuconfig， linux kernel是基于Kconfig树;而system是基于Config.in树
-system模块，makefile大部分是基于makefile.am和autotools产生，部分是Cmake机制产生
+make menuconfig， linux kernel是基于Kconfig树;而system是基于Config.in树. system模块，makefile大部分是基于makefile.am和autotools产生，部分是Cmake机制产生
 
 Linux内核的配置机制及其编译过程
 

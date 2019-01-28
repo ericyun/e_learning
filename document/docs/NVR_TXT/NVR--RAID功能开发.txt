@@ -4,7 +4,6 @@ rtsp://INFINOVA:INFINOVA@192.168.1.100:554/1/h265major
 基本数据结构的新定义：
 1. d_info[]管理通用的硬盘设备，包括sata和raid等，这是上层看到的结构。
 2. sata_info[]管理物理sata硬盘，
-3.
 
 mdadm编译:
 1. 下载并解压mdadm软件，进入目录
@@ -108,4 +107,3 @@ RAID设备销毁过程： 先删除RAID中的所有设备，然后停止该RAID�
     rm -f /etc/raidtab
     检查系统启动文件中是否还有其他mdad启动方式
     vi /etc/rc.sysinit +/raid\c
-
