@@ -308,7 +308,17 @@ asmlinkage void __init start_kernel(void)
         cpu_startup_entry(CPUHP_ONLINE);
 ```
 
-## 2
+## 启动过程中参数处理
+
+```cpp
+//start_kernel()函数中参数解析的部分
+void __init start_kernel(void)
+  setup_arch(&command_line);
+  setup_command_line(command_line);
+  parse_early_param();
+	parse_args("Booting kernel", static_command_line, __start___param, __stop___param - __start___param, -1, -1, &unknown_bootoption);
+```
+
 
 ## 3
 
