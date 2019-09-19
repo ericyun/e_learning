@@ -6,6 +6,49 @@
 | 初版 | 2018/04/10 | 员清观 |  |
 
 ## 1 地址空间
+初始化阶段内存布局打印:
+```cpp
+[    0.000000] Dentry cache hash table entries: 8192 (order: 3, 32768 bytes)
+[    0.000000] Inode-cache hash table entries: 4096 (order: 2, 16384 bytes)
+[    0.000000] Memory: 62MB = 62MB total
+[    0.000000] Memory: 23052k/23052k available, 40436k reserved, 0K highmem
+[    0.000000] Virtual kernel memory layout:
+[    0.000000]     modules : 0xbf800000 - 0xc0000000   (   8 MB)
+[    0.000000]     lowmem  : 0xc0000000 - 0xc3e00000   (  62 MB)
+[    0.000000]       .text : 0xc0008000 - 0xc04b86bc   (4802 kB)
+[    0.000000]       .init : 0xc04b9000 - 0xc04d147c   (  98 kB)
+[    0.000000]       .data : 0xc04d2000 - 0xc055f6a0   ( 566 kB)
+[    0.000000]        .bss : 0xc0560460 - 0xc06cf580   (1469 kB)
+[    0.000000]     vmalloc : 0xc4000000 - 0xff000000   ( 944 MB)
+[    0.000000]     fixmap  : 0xfff00000 - 0xfffe0000   ( 896 kB)
+[    0.000000]     vector  : 0xffff0000 - 0xffff1000   (   4 kB)
+[    0.000000] NR_IRQS:512
+```
+共享存储型多处理机有两种模型
+- 均匀存储器存取（Uniform-Memory-Access，简称UMA）模型
+- 非均匀存储器存取（Nonuniform-Memory-Access，简称NUMA）模型
+
+**内存管理基本概念**
+打印  VMALLOC_RESERVE　　VMALLOC_START  VMALLOC_END VMALLOC_OFFSET
+
+内核线性地址空间部分
+1. 从PAGE_OFFSET（通常定义为3G）开始，
+2. 为了将内核装入内存，从PAGE_OFFSET开始8M线性地址用来映射内核所在的物理内存地址（也可以说是内核所在虚拟地址是从PAGE_OFFSET开始的）；
+3. 接下来是mem_map数组，
+4. vmalloc()使用从VMALLOC_START到VMALLOC_END
+
+32位的地址空间被分为3部分:
+1. 页目录表Directory 	 最高10位
+2. 页中间表Table 	     中间10位
+3. 页内偏移 	           最低12位
+　即页表被划分为页目录表Directory和页中间表Tabl两个部分，内核通常只为进程实际使用的那些虚拟内存区请求页表来减少内存使用量.
+
+Linux内核通过四级页表将虚拟内存空间分为5个部分(4个页表项用于选择页, 1个索引用来表示页内的偏移). 各个体系结构不仅地址长度不同, 而且地址字拆分的方式也不一定相同. 因此内核使用了宏用于将地址分解为各个分量.
+
+![linux页表](pic_dir/linux页表.png)
+
+c20设备，通常只支持ZONE_NORMAL,ZONE_MOVABLE两种ZONE，因为物理内存不超过1G，不需要使用高端内存，硬件上不需要DMA区域
+
 几个基本的地址空间概念：
 - 用户虚拟地址：User virtual addresses，用户程序见到的常规地址. 用户地址在长度上是 32 位或者 64 位, 依赖底层的硬件结构, 并且每个进程有它自己的虚拟地址空间.
 - 总线地址：Bus addresses,在外设和内存之间使用的地址,但是这不是必要. 一些体系可提供一个 I/O 内存管理单元(IOMMU), 它在总线和主内存之间重映射地址.
@@ -15,37 +58,27 @@
 - Low memory：低端内存 在内核空间中拥有逻辑地址的内存. 在大部分系统中（ARM构架几乎都是）,几乎所有的内存都是低端内存.
 - High memory：高端内存 没有逻辑地址映射的内存,它位于内核逻辑地址范围之外，使用前必须使用vmalloc等内核函数做好映射.
 
-在内核中phys_to_virt只是给地址减去一个固定的偏移; ioremap()的原则就是内核会根据指定的物理地址新建映射页表，物理地址和虚拟地址的关系就由这些页表来搭建; `#define __phys_to_virt(x)	((x) - PHYS_OFFSET + PAGE_OFFSET)`
+在内核中`phys_to_virt`只是给地址减去一个固定的偏移; `ioremap()`的原则就是内核会根据指定的物理地址新建映射页表，物理地址和虚拟地址的关系就由这些页表来搭建; `#define __phys_to_virt(x)	((x) - PHYS_OFFSET + PAGE_OFFSET)`
 
 许多内核数据结构必须放在低端内存; 高端内存主要为用户进程页所保留.
 
 ![linux内存管理内核内存地址空间](pic_dir/linux内存管理内核内存地址空间.png)
 
-cat /proc/zoneinfo
-cat /proc/buddyinfo
-cat /proc/slabinfo
-cat /proc/vmallocinfo
-cat /proc/pagetypeinfo
 
 CONFIG_CMA_SIZE_SEL_MBYTES :: 32Mbytes 对应CMA的大小定义
 CONFIG_DMA_API_DEBUG :: 开启dma_alloc的trace,不知道是否有用.
 
 ```cpp
-
-
 extern int memblock_debug;
 //#define memblock_dbg(fmt, ...) \
 	if (memblock_debug){ \
 		printk(KERN_EMERG "@@@@@@@  %s,%d" , __func__, __LINE__); \
 		printk(KERN_EMERG "@@@@@@@@@@@@@@@ [memblock]" pr_fmt(fmt), ##__VA_ARGS__); \
 		}\
+// __GFP_WAIT 表示分配内存的请求可以中断。也就是说，调度器在该请求期间可随意选择另一个过程执行，或者该请求可以被另一个更重要的事件中断. 分配器还可以在返回内存之前, 在队列上等待一个事件(相关进程会进入睡眠状态).
 ```
-/* __GFP_WAIT表示分配内存的请求可以中断。也就是说，调度器在该请求期间可随意选择另一个过程执行，或者该请求可以被另一个更重要的事件中断. 分配器还可以在返回内存之前, 在队列上等待一个事件(相关进程会进入睡眠状态).
---->某些请求,是否可以多等等呢?
-
 
 ## 1.1 vmlinux.lds.s文件
-
 ```cpp
 //.xx.xx : {} 段定义
 //. = PAGE_OFFSET　定位到指定位置
@@ -248,7 +281,124 @@ SECTIONS
 }
 ```
 
-## 2 关键全局数据结构
+## 1.2 vmallocinfo解析
+
+`iotable_init()`为静态映射，`ioremap`为动态映射
+
+```cpp
+0xbf800000-0xbf803000   12288 module_alloc_update_bounds+0x9/0x40 pages=2 vmalloc
+0xbf805000-0xbf82e000  167936 module_alloc_update_bounds+0x9/0x40 pages=40 vmalloc
+0xbf835000-0xbf83a000   20480 module_alloc_update_bounds+0x9/0x40 pages=4 vmalloc
+0xc1800000-0xc3800000 33554432 iotable_init+0x1/0x90 phys=41800000 ioremap
+0xc4004000-0xc4006000    8192 devm_ioremap+0x21/0x44 phys=20800000 ioremap
+0xc4006000-0xc4008000    8192 devm_ioremap+0x21/0x44 phys=20803000 ioremap
+0xc4008000-0xc400e000   24576 apollo_init_gpio+0x13/0x3c phys=20f00000 ioremap
+0xc400e000-0xc4010000    8192 devm_ioremap+0x21/0x44 phys=20f00000 ioremap
+0xc4010000-0xc4012000    8192 devm_ioremap_nocache+0x21/0x44 phys=20d00000 ioremap
+0xc4012000-0xc4014000    8192 devm_ioremap_nocache+0x21/0x44 phys=20200000 ioremap
+0xc4014000-0xc4016000    8192 imapx_i2c_probe+0x13f/0x2b8 phys=20301000 ioremap
+0xc4016000-0xc4018000    8192 imapx_i2c_probe+0x13f/0x2b8 phys=20302000 ioremap
+0xc4018000-0xc401a000    8192 imapx_i2c_probe+0x13f/0x2b8 phys=20303000 ioremap
+0xc401a000-0xc401c000    8192 imapx_i2c_probe+0x175/0x2b8 phys=20304000 ioremap
+0xc401c000-0xc401e000    8192 devm_ioremap_nocache+0x21/0x44 phys=27500000 ioremap
+0xc401e000-0xc4020000    8192 devm_ioremap_nocache+0x21/0x44 phys=27200000 ioremap
+0xc4020000-0xc4022000    8192 devm_ioremap_nocache+0x21/0x44 phys=27300000 ioremap
+0xc4022000-0xc4024000    8192 devm_ioremap_nocache+0x21/0x44 phys=27580000 ioremap
+0xc4024000-0xc4026000    8192 devm_ioremap_nocache+0x21/0x44 phys=21200000 ioremap
+0xc4026000-0xc4028000    8192 pl022_probe+0xe1/0x3d4 phys=20501000 ioremap
+0xc4028000-0xc402a000    8192 devm_ioremap+0x21/0x44 phys=27001000 ioremap
+0xc402a000-0xc402c000    8192 devm_ioremap_nocache+0x21/0x44 phys=27000000 ioremap
+0xc402c000-0xc402f000   12288 zs_cpu_notifier.part.11+0x15/0x24 ioremap
+0xc4030000-0xc4032000    8192 ReserveIO+0x29/0xec phys=25000000 ioremap
+0xc4032000-0xc4034000    8192 imapx_iis_dev_probe+0x25/0x1a4 phys=20003000 ioremap
+0xc4034000-0xc4037000   12288 ig_probe+0x1eb/0x504 phys=27600000 ioremap
+0xc4038000-0xc403a000    8192 imapx_iis_dev_probe+0x39/0x1a4 phys=20003000 ioremap
+0xc403a000-0xc403c000    8192 imapx_iis_dev_probe+0x4b/0x1a4 phys=20003000 ioremap
+0xc403c000-0xc403e000    8192 imapx_i2s_probe+0x1d/0x44 phys=20000000 ioremap
+0xc403e000-0xc405f000  135168 xz_dec_lzma2_create+0x35/0x4c pages=32 vmalloc
+0xc4100000-0xc4181000  528384 init_module+0x110/0x5a4 [ceva_dsp] phys=43e00000 ioremap
+0xc4200000-0xc4301000 1052672 dwc_otg_driver_probe+0xaf/0x69c phys=27100000 ioremap
+0xc4400000-0xc4501000 1052672 ids_access_Initialize+0x11/0x7c phys=22300000 ioremap
+0xc4600000-0xc4701000 1052672 devm_ioremap_nocache+0x21/0x44 phys=22100000 ioremap
+0xc4800000-0xc4901000 1052672 ci_platform_probe+0x4a/0x6c [Felix] phys=22000000 ioremap
+0xc4a00000-0xc4b01000 1052672 hw_awb_module_init+0x12/0x2f8 [Felix] phys=22040000 ioremap
+0xc4c00000-0xc4e01000 2101248 init_module+0x110/0x5a4 [ceva_dsp] phys=3c600000 ioremap
+0xc4f00000-0xc4f81000  528384 init_module+0x110/0x5a4 [ceva_dsp] phys=3c800000 ioremap
+0xc5000000-0xc5201000 2101248 init_module+0x110/0x5a4 [ceva_dsp] phys=3c000000 ioremap
+0xc5400000-0xc5501000 1052672 init_module+0x110/0x5a4 [ceva_dsp] phys=43e80000 ioremap
+
+//以下为start_kernel-->setup_arch-->paging_init-->devicemaps_init-->mdesc->map_io()::q3f_map_io()
+0xfe000000-0xfe100000 1048576 iotable_init+0x1/0x90 phys=2d000000 ioremap
+0xfe100000-0xfe200000 1048576 iotable_init+0x1/0x90 phys=21b00000 ioremap
+0xfe200000-0xfe201000    4096 iotable_init+0x1/0x90 phys=20100000 ioremap
+0xfe300000-0xfe340000  262144 iotable_init+0x1/0x90 phys=8000000 ioremap
+0xfe400000-0xfe410000   65536 iotable_init+0x1/0x90 phys=21a00000 ioremap
+0xfe500000-0xfe501000    4096 iotable_init+0x1/0x90 phys=20300000 ioremap
+0xffff2000-0xffffa000   32768 iotable_init+0x1/0x90 phys=8018000 ioremap
+```
+
+## 1.3 q3f内存映射空间解析
+
+```cpp
+phys_addr_t arm_lowmem_limit; //0x43e00000 物理地址的上边界，应该就对应着ZONE_NORMAL的上边界
+void * high_memory; //0xc3e00000 high_memory = __va(arm_lowmem_limit - 1) + 1;
+
+临时映射线性地址空间   fixmap  : 0xfff00000 - 0xfffe0000   ( 896 kB)
+//#define FIXADDR_START		0xfff00000UL
+//#define FIXADDR_TOP		0xfffe0000UL
+//#define FIXADDR_SIZE		(FIXADDR_TOP - FIXADDR_START)
+vmalloc : 0xc4000000 - 0xff000000   ( 944 MB) //当前系统实际对应物理内存映射后面8M对齐的地方//vmalloc()函数用来把不连续的物理地址空间映射到此范围内连续的线性地址空间上
+//#define VMALLOC_OFFSET		(8*1024*1024) //防止访问越界．
+//#define VMALLOC_START		(((unsigned long)high_memory + VMALLOC_OFFSET) & ~(VMALLOC_OFFSET-1))
+//#define VMALLOC_END		0xff000000UL
+//mem_map ： 0xc06db000开始保存页表,有效15872page
+// kernel部分，总大概7Mbytes
+	.bss : 0xc056b330 - 0xc06da3c0   (1469 kB)
+	//(__bss_start, __bss_stop)
+	.data : 0xc04dc000 - 0xc056a260   ( 569 kB)　//struct pglist_data *zone_pgdat:0xc0569724包含在data段中
+	//(_sdata, _edata)
+	.init : 0xc04c2000 - 0xc04da844   (  99 kB)
+	//(__init_begin, __init_end)
+	.text : 0xc0008000 - 0xc04c1860   (4839 kB)
+	//(_text, _etext)
+lowmem  : 0xc0000000 - 0xc3e00000   (  62 MB)
+//#define PAGE_OFFSET 0xc0000000
+//#high_memory :: 0xc3e00000
+modules : 0xbf800000 - 0xc0000000   (   8 MB)
+//#define MODULES_VADDR		(PAGE_OFFSET - SZ_8M)
+
+mach-q3f/include/mach/memory.h:14:      #define PLAT_PHYS_OFFSET	UL(0x40000000)
+mach-q3f/include/mach/imap-iomap.h:10:  #define IMAP_SDRAM_BASE		0x40000000
+//#define PHYS_OFFSET	PLAT_PHYS_OFFSET
+//#define ___RBASE   phys_to_virt(IMAP_SDRAM_BASE + 0x3800000) 寄存器地址空间
+//#define PHYS_PFN_OFFSET	(PHYS_OFFSET >> PAGE_SHIFT)     ::0x40000
+//#define ARCH_PFN_OFFSET		PHYS_PFN_OFFSET								::0x40000
+
+void *page_address(struct page *page);
+struct page *pfn_to_page(int pfn);
+struct page *virt_to_page(void *kaddr);
+
+virt_to_page(addr)产生线性地址对应的页描述符地址。pfn_to_page(pfn)产生对应页框号的页描述符地址；page_to_pfn(page)产生对应页描述符地址的页框号
+//#define __virt_to_phys(x)	((x) - PAGE_OFFSET + PHYS_OFFSET)
+//#define __phys_to_virt(x)	((x) - PHYS_OFFSET + PAGE_OFFSET)
+//#define __pa(x)			__virt_to_phys((unsigned long)(x))
+//#define __va(x)			((void *)__phys_to_virt((unsigned long)(x)))
+//#define pfn_to_kaddr(pfn)	__va((pfn) << PAGE_SHIFT)
+
+//#if defined(CONFIG_FLATMEM)
+//#define __pfn_to_page(pfn)	(mem_map + ((pfn) - ARCH_PFN_OFFSET))
+//#define __page_to_pfn(page)	((unsigned long)((page) - mem_map) + ARCH_PFN_OFFSET)
+//#define page_to_pfn __page_to_pfn
+//#define pfn_to_page __pfn_to_page
+//#endif
+
+//#define virt_to_page(kaddr)	pfn_to_page(__pa(kaddr) >> PAGE_SHIFT)
+//#define virt_addr_valid(kaddr)	((unsigned long)(kaddr) >= PAGE_OFFSET && (unsigned long)(kaddr) < (unsigned long)high_memory)cgroup_init_early
+//#define page_to_phys(page)      ((dma_addr_t)page_to_pfn(page) << PAGE_SHIFT)
+//#define page_to_virt(page)	pfn_to_virt(page_to_pfn(page))
+```
+
+## 2 node,zone以及关键全局数据结构
 
 ```cpp
 struct bootmem_data;
@@ -271,12 +421,37 @@ typedef struct pglist_data {
 } pg_data_t;
 
 
+unsigned long max_mapnr;
+struct page *mem_map; //页的数据结构对象都保存在mem_map全局数组中，该数组通常被存放在ZONE_NORMAL的首部，或者就在小内存系统中为装入内核映像而预留的区域之后。从载入内核的低地址内存区域的后面内存区域，也就是ZONE_NORMAL开始的地方的内存的页的数据结构对象，都保存在这个全局数组中
+//#define NODE_DATA(nid)		(&contig_page_data)
+//#define NODE_MEM_MAP(nid)	mem_map
+EXPORT_SYMBOL(contig_page_data);
+//#define node_present_pages(nid)	(NODE_DATA(nid)->node_present_pages)
+//#define node_spanned_pages(nid)	(NODE_DATA(nid)->node_spanned_pages)
+//#define pgdat_page_nr(pgdat, pagenr)	((pgdat)->node_mem_map + (pagenr))
+//#define nid_page_nr(nid, pagenr) 	pgdat_page_nr(NODE_DATA(nid),(pagenr))
+//#define node_start_pfn(nid)	(NODE_DATA(nid)->node_start_pfn)
+//#define node_end_pfn(nid) pgdat_end_pfn(NODE_DATA(nid))
 
+//设置zonelist，这是分配内存时候遍历zone的顺序，但对c20的单个ZONE，没有意义
+//#define ZONELIST_ORDER_DEFAULT  0
+//#define ZONELIST_ORDER_NODE     1
+//#define ZONELIST_ORDER_ZONE     2
+static int current_zonelist_order = ZONELIST_ORDER_DEFAULT;
+static char zonelist_order_name[3][8] = {"Default", "Node", "Zone"};
+static void set_zonelist_order(void)
+	current_zonelist_order = ZONELIST_ORDER_ZONE;
+void build_zonelists(pg_data_t *pgdat)
+	local_node = pgdat->node_id;
+	zonelist = &pgdat->node_zonelists[0];
+	j = build_zonelists_node(pgdat, zonelist, 0, MAX_NR_ZONES - 1);
+	zonelist->_zonerefs[j].zone = NULL;
+	zonelist->_zonerefs[j].zone_idx = 0;
 ```
 
 在内存中，每个簇所对应的node又被分成的称为管理区(zone)的块，它们各自描述在内存中的范围。一个管理区(zone)由struct zone结构体来描述．zone对象用于跟踪诸如页面使用情况的统计数, 空闲区域信息和锁信息．里面保存着内存使用状态信息，如page使用统计, 未使用的内存区域，互斥访问的锁（LOCKS）等.
 管理区的类型用zone_type表示,我们的系统中用到了：　<br>
-- ZONE_NORMAL 	标记了可直接映射到内存段的普通内存域. 这是在所有体系结构上保证会存在的唯一内存区域, 但无法保证该地址范围对应了实际的物理地址. 例如, 如果AMD64系统只有两2G内存, 那么所有的内存都属于ZONE_DMA32范围, 而ZONE_NORMAL则为空；
+- ZONE_NORMAL 	标记了可直接映射到内存段的普通内存域. 这是在所有体系结构上保证会存在的唯一内存区域, 但无法保证该地址范围对应了实际的物理地址. 例如, 如果AMD64系统只有两2G内存, 那么所有的内存都属于`ZONE_DMA`范围, 而`ZONE_NORMAL`则为空；
 - ZONE_MOVABLE 	内核定义了一个伪内存域ZONE_MOVABLE, 在防止物理内存碎片的机制memory migration中需要使用该内存域. 供防止物理内存碎片的极致使用
 - ZONE_HIGHMEM 	896MB~物理内存结束，实际没有用到
 
@@ -297,11 +472,13 @@ static int fallbacks[MIGRATE_TYPES][4] = {
 	[MIGRATE_CMA]         = { MIGRATE_RESERVE }, /* Never used */
 	[MIGRATE_RESERVE]     = { MIGRATE_RESERVE }, /* Never used */
 };
+
 //[MIGRATE_MOVABLE]     = { MIGRATE_RECLAIMABLE, MIGRATE_UNMOVABLE, MIGRATE_RESERVE }, //如果禁止MOVABLE类型使用CMA
 struct free_area {
 	struct list_head	free_list[MIGRATE_TYPES];
 	unsigned long		nr_free;
 };
+
 enum zone_watermarks {
 	WMARK_MIN,	WMARK_LOW,	WMARK_HIGH,	NR_WMARK
 };
@@ -347,12 +524,6 @@ struct zone {
 }____cacheline_internodealigned_in_smp;
 
 typedef struct pglist_data pg_data_t;
-unsigned long min_low_pfn; //系统可用的第一个pfn, 0, 对应pfn::0x40000
-unsigned long max_low_pfn; //系统可用的最后一个PFN,0x3e00, 对应pfn::0x43e00, 0x3e00对应15872个实际的page
-unsigned long max_pfn; //系统可用的最后一个PFN,0x3e00,arm_bootmem_free()调用后是0x40000+0x3e00
-//PHYS_PFN_OFFSET :: 0x40000 页帧号开始偏移．
-bootmem_data_t bootmem_node_data[MAX_NUMNODES] __initdata;
-struct pglist_data __refdata contig_page_data = {	.bdata = &bootmem_node_data[0] };
 
 int min_free_kbytes = 1024;
 int min_free_order_shift = 1;
@@ -365,15 +536,49 @@ static unsigned long __meminitdata dma_reserve;     //0 always
 //在分配内存时, 如果必须”盗取”不同于预定迁移类型的内存区, 内核在策略上倾向于”盗取”更大的内存区. 由于所有页最初都是可移动的, 那么在内核分配不可移动的内存区时, 则必须”盗取”.实际上, 在启动期间分配可移动内存区的情况较少, 那么分配器有很高的几率分配长度最大的内存区, 并将其从可移动列表转换到不可移动列表. 由于分配的内存区长度是最大的, 因此不会向可移动内存中引入碎片.总而言之, 这种做法避免了启动期间内核分配的内存(经常在系统的整个运行时间都不释放)散布到物理内存各处, 从而使其他类型的内存分配免受碎片的干扰，这也是页可移动性分组框架的最重要的目标之一.
 void __meminit memmap_init_zone(unsigned long size, int nid, unsigned long zone,unsigned long start_pfn, enum memmap_context context)
 
-unsigned long max_mapnr;
-struct page *mem_map; //页的数据结构对象都保存在mem_map全局数组中，该数组通常被存放在ZONE_NORMAL的首部，或者就在小内存系统中为装入内核映像而预留的区域之后。从载入内核的低地址内存区域的后面内存区域，也就是ZONE_NORMAL开始的地方的内存的页的数据结构对象，都保存在这个全局数组中
-
 int __init kswapd_init(void)
   kswapd_run(nid);   //|--> pgdat->kswapd = kthread_run(kswapd, pgdat, "kswapd%d", nid);
   hotcpu_notifier(cpu_callback, 0);
-
-
+enum zone_stat_item {
+	/* First 128 byte cacheline (assuming 64 bit words) */
+	NR_FREE_PAGES,
+	NR_LRU_BASE,
+	NR_INACTIVE_ANON = NR_LRU_BASE, /* must match order of LRU_[IN]ACTIVE */
+	NR_ACTIVE_ANON,		/*  "     "     "   "       "         */
+	NR_INACTIVE_FILE,	/*  "     "     "   "       "         */
+	NR_ACTIVE_FILE,		/*  "     "     "   "       "         */
+	NR_UNEVICTABLE,		/*  "     "     "   "       "         */
+	NR_MLOCK,		/* mlock() ed pages found and moved off LRU */
+	NR_ANON_PAGES,	/* Mapped anonymous pages */
+	NR_FILE_MAPPED,	/* pagecache pages mapped into pagetables.
+			   only modified from process context */
+	NR_FILE_PAGES,
+	NR_FILE_DIRTY,
+	NR_WRITEBACK,
+	NR_SLAB_RECLAIMABLE,
+	NR_SLAB_UNRECLAIMABLE,
+	NR_PAGETABLE,		/* used for pagetables */
+	NR_KERNEL_STACK,
+	/* Second 128 byte cacheline */
+	NR_UNSTABLE_NFS,	/* NFS unstable pages */
+	NR_BOUNCE,
+	NR_VMSCAN_WRITE,
+	NR_VMSCAN_IMMEDIATE,	/* Prioritise for reclaim when writeback ends */
+	NR_WRITEBACK_TEMP,	/* Writeback using temporary buffers */
+	NR_ISOLATED_ANON,	/* Temporary isolated pages from anon lru */
+	NR_ISOLATED_FILE,	/* Temporary isolated pages from file lru */
+	NR_SHMEM,		/* shmem pages (included tmpfs/GEM pages) */
+	NR_DIRTIED,		/* page dirtyings since bootup */
+	NR_WRITTEN,		/* page writings since bootup */
+	NR_ANON_TRANSPARENT_HUGEPAGES,
+	NR_FREE_CMA_PAGES,
+	NR_VM_ZONE_STAT_ITEMS
+};
 ```
+
+内核提供了两个标志，分别用于表示分配的内存是可移动的(__GFP_MOVABLE)或可回收的(__GFP_RECLAIMABLE)，从而知道给定的分配内存属于何种迁移类型
+
+
 ## 2.1 内存初始化主流程
 
 如果能知道当前函数运行时层次,就可以方便的打印trace信息了.
@@ -416,17 +621,7 @@ void __init arm_bootmem_free(unsigned long min, unsigned long max_low, unsigned 
 					set_pageblock_migratetype(page, MIGRATE_MOVABLE);//-->__set_bit(bitidx + start_bitidx, &zone->pageblock_flags);
 void __init bootmem_init(void)
 	find_limits(&min, &max_low, &max_high); //从memblock对应的meminfo结构中
-	|--> arm_bootmem_init(min, max_low);//void arm_bootmem_init(unsigned long start_pfn,unsigned long end_pfn)
-		boot_pages = bootmem_bootmap_pages(end_pfn - start_pfn);//计算mapping需要的管理页面的个数,每个page对应其中一个bit.
-		bitmap = memblock_alloc_base(boot_pages << PAGE_SHIFT, L1_CACHE_BYTES,__pfn_to_phys(end_pfn));//分配管理内存,大概0x1000
-		|--> init_bootmem_node(pgdat, __phys_to_pfn(bitmap), start_pfn, end_pfn);//--->init_bootmem_core(pgdat->bdata, freepfn, startpfn, endpfn);		//初始化bootmem,然后将memblock当前mem占用情况转换到bootmem机制::->//unsigned long __init init_bootmem_core(bootmem_data_t *bdata,unsigned long mapstart, unsigned long start, unsigned long end)
-			bdata->node_bootmem_map = phys_to_virt(PFN_PHYS(mapstart));
-			bdata->node_min_pfn = start;	bdata->node_low_pfn = end;
-			link_bootmem(bdata);//void  link_bootmem(bootmem_data_t *bdata) //-->list_add_tail(&bdata->list, &bdata_list);
-			mapsize = bootmap_bytes(end - start);
-			memset(bdata->node_bootmem_map, 0xff, mapsize);
-		for_each_memblock(memory, reg)	free_bootmem(__pfn_to_phys(start), (end - start) << PAGE_SHIFT);
-		for_each_memblock(reserved, reg) reserve_bootmem(__pfn_to_phys(start),(end - start) << PAGE_SHIFT, BOOTMEM_DEFAULT);
+	arm_bootmem_init(min, max_low);
 	//arm_memory_present();		sparse_init();
 	arm_bootmem_free(min, max_low, max_high); //max_low:: 0x40000, 页号
 	max_low_pfn = max_low - PHYS_PFN_OFFSET;
@@ -453,13 +648,7 @@ void __init setup_arch(char **cmdline_p)
 	|--> sanity_check_meminfo();//void __init sanity_check_meminfo(void)
 		meminfo.nr_banks = 1; high_memory = __va(arm_lowmem_limit - 1) + 1;　//0x43e00000-->0xc3e00000
 		memblock_set_current_limit(arm_lowmem_limit);
-	|--> arm_memblock_init(&meminfo, mdesc);//void arm_memblock_init(struct meminfo *mi, struct machine_desc *mdesc)
-		memblock_add(mi->bank[0].start, mi->bank[0].size);//bankstart:40000000 banksize:3e00000,添加到 memblock.memory
-		memblock_reserve(__pa(_stext), _end - _stext);//reserve代码和数据段
-		arm_mm_memblock_reserve();//--> memblock_reserve(__pa(swapper_pg_dir), SWAPPER_PG_DIR_SIZE); 为mm管理页目录信息预留16k内存::0x40004000-->0x40008000
-		arm_dt_memblock_reserve();//为设备树管理预留内存
-		q3f_reserve();//为dsp预留-->memblock_reserve(arm_lowmem_limit, 0x180000);
-		dma_contiguous_reserve(arm_lowmem_limit); //cma内存从0x41800000开始的32M
+	arm_memblock_init(&meminfo, mdesc);
   |||------>>>paging_init(mdesc); //已经解析， above
 	|--> request_standard_resources(mdesc);//void request_standard_resources(struct machine_desc *mdesc)
 		kernel_code.start   = virt_to_phys(_text);				kernel_code.end     = virt_to_phys(_etext - 1);
@@ -600,7 +789,10 @@ asmlinkage void __init start_kernel(void)
 //void __init free_area_init(unsigned long *zones_size) //我们的系统中并没有被调用到
 ```
 
-## 2.2 页访问相干
+## 2.2 page基本操作
+page的三个用法：
+- page处于伙伴系统中时，用于链接相同阶的伙伴（只使用伙伴中的第一个page的lru即可达到目的）
+- 设置PG_slab, 则page属于slab，page->lru.next指向page驻留的的缓存的管理结构，page->lru.prec指向保存该page的slab的管理结构。
 
 ```cpp
 //#define pgoff_t unsigned long
@@ -611,19 +803,16 @@ struct page {
 	atomic_t _mapcount; //被页表映射的次数，也就是说该page同时被多少个进程共享。初始值为-1，如果只被一个进程的页表映射了，该值为0. 如果该page处于伙伴系统
 	unsigned long private;
 };
-　　::mapping  指定了页帧所在的地址空间, index是页帧在映射内部的偏移量. 地址空间是一个非常一般的概念. 例如, 可以用在向内存读取文件时. 地址空间用于将文件的内容与装载数据的内存区关联起来. mapping不仅能够保存一个指针, 而且还能包含一些额外的信息, 用于判断页是否属于未关联到地址空间的某个匿名内存区.如果mapping = 0，说明该page属于交换高速缓存页（swap cache）；当需要使用地址空间时会指定交换分区的地址空间swapper_space；如果mapping != 0，第0位bit[0] = 0，说明该page属于页缓存或文件映射，mapping指向文件的地址空间address_space；如果mapping != 0，第0位bit[0] != 0，说明该page为匿名映射，mapping指向struct anon_vma对象。通过mapping恢复anon_vma的方法：anon_vma = (struct anon_vma *)(mapping - PAGE_MAPPING_ANON)。
-　　::index   是该页描述结构在地址空间radix树page_tree中的对象索引号即页号, 表示该页在vm_file中的偏移页数
-　　::private 私有数据指针, 由应用场景确定其具体的含义：如果设置了PG_private标志，则private字段指向struct buffer_head；如果设置了PG_compound，则指向struct page；如果设置了PG_swapcache标志，private存储了该page在交换分区中对应的位置信息swp_entry_t；如果_mapcount = PAGE_BUDDY_MAPCOUNT_VALUE，说明该page位于伙伴系统，private存储该伙伴的阶
+//mapping  指定了页帧所在的地址空间, index是页帧在映射内部的偏移量. 地址空间是一个非常一般的概念. 例如, 可以用在向内存读取文件时. 地址空间用于将文件的内容与装载数据的内存区关联起来. mapping不仅能够保存一个指针, 而且还能包含一些额外的信息, 用于判断页是否属于未关联到地址空间的某个匿名内存区.如果mapping = 0，说明该page属于交换高速缓存页（swap cache）；当需要使用地址空间时会指定交换分区的地址空间swapper_space；如果mapping != 0，第0位bit[0] = 0，说明该page属于页缓存或文件映射，mapping指向文件的地址空间address_space；如果mapping != 0，第0位bit[0] != 0，说明该page为匿名映射，mapping指向struct anon_vma对象。通过mapping恢复anon_vma的方法：anon_vma = (struct anon_vma *)(mapping - PAGE_MAPPING_ANON)。
 
-由page获取node和zone，老版本是page中保留指针，现在保留索引，节省内存．
-static inline struct zone *page_zone(const struct page *page)
-    return &NODE_DATA(page_to_nid(page))->node_zones[page_zonenum(page)];
-static inline void set_page_zone(struct page *page, enum zone_type zone)
-    page->flags &= ~(ZONES_MASK << ZONES_PGSHIFT);    page->flags |= (zone & ZONES_MASK) << ZONES_PGSHIFT;
-static inline void set_page_node(struct page *page, unsigned long node)
-    page->flags &= ~(NODES_MASK << NODES_PGSHIFT);    page->flags |= (node & NODES_MASK) << NODES_PGSHIFT;
+//index   是该页描述结构在地址空间radix树page_tree中的对象索引号即页号, 表示该页在vm_file中的偏移页数
 
+//private 私有数据指针, 由应用场景确定其具体的含义：如果设置了PG_private标志，则private字段指向struct buffer_head；如果设置了PG_compound，则指向struct page；如果设置了PG_swapcache标志，private存储了该page在交换分区中对应的位置信息swp_entry_t；如果_mapcount = PAGE_BUDDY_MAPCOUNT_VALUE，说明该page位于伙伴系统，private存储该伙伴的阶
+```
+
+**基于page flags的相关操作**<br>
 page的flags标识主要分为4部分，其中标志位flag向高位增长, 其余位字段向低位增长，中间存在空闲位：<br>
+- section
 - node 	NUMA节点号, 标识该page属于哪一个节点
 - zone 	内存域标志，标识该page属于哪一个zone
 - flag 	page的状态标识
@@ -644,6 +833,10 @@ page的flags标识主要分为4部分，其中标志位flag向高位增长, 其�
 	- PG_mlocked 	该page在vma中被锁定，一般是通过系统调用mlock()锁定了一段内存
 	- ...
 
+```cpp
+PageXXX(page)：检查page是否设置了PG_XXX位 SetPageXXX(page)：设置page的PG_XXX位 ClearPageXXX(page)：清除page的PG_XXX位 TestSetPageXXX(page)：设置page的PG_XXX位，并返回原值 TestClearPageXXX(page)：清除page的PG_XXX位，并返回原值
+
+很多情况下, 需要等待页的状态改变, 然后才能恢复工作. 因此内核提供了两个辅助函数
 void wait_on_page_locked(struct page *page)
 	if (PageLocked(page))
 		|--> wait_on_page_bit(page, PG_locked);//void wait_on_page_bit(struct page *page, int bit_nr)
@@ -653,69 +846,20 @@ void wait_on_page_locked(struct page *page)
 void wait_on_page_writeback(struct page *page)
 	if (PageWriteback(page))
 		wait_on_page_bit(page, PG_writeback);
+
+
+static inline struct zone *page_zone(const struct page *page)
+    return &NODE_DATA(page_to_nid(page))->node_zones[page_zonenum(page)];
+static inline void set_page_zone(struct page *page, enum zone_type zone)
+    page->flags &= ~(ZONES_MASK << ZONES_PGSHIFT);    page->flags |= (zone & ZONES_MASK) << ZONES_PGSHIFT;
+static inline void set_page_node(struct page *page, unsigned long node)
+    page->flags &= ~(NODES_MASK << NODES_PGSHIFT);    page->flags |= (node & NODES_MASK) << NODES_PGSHIFT;
 ```
 
-**q3f内存映射空间解析**<br>
+## 2.3 页表相关操作
+`follow_page()`函数可以根据虚拟地址获取物理页，示例代码详见mm/memory.c
+
 ```cpp
-phys_addr_t arm_lowmem_limit; //0x43e00000 物理地址的上边界
-void * high_memory; //0xc3e00000 high_memory = __va(arm_lowmem_limit - 1) + 1;
-
-临时映射线性地址空间   fixmap  : 0xfff00000 - 0xfffe0000   ( 896 kB)
-//#define FIXADDR_START		0xfff00000UL
-//#define FIXADDR_TOP		0xfffe0000UL
-//#define FIXADDR_SIZE		(FIXADDR_TOP - FIXADDR_START)
-vmalloc : 0xc4000000 - 0xff000000   ( 944 MB) //当前系统实际对应物理内存映射后面8M对齐的地方//vmalloc()函数用来把不连续的物理地址空间映射到此范围内连续的线性地址空间上
-//#define VMALLOC_OFFSET		(8*1024*1024) //防止访问越界．
-//#define VMALLOC_START		(((unsigned long)high_memory + VMALLOC_OFFSET) & ~(VMALLOC_OFFSET-1))
-//#define VMALLOC_END		0xff000000UL
-//mem_map：0xc06db000开始保存页表,有效15872page
-	-->kernel部分，大概7Mbytes
-	.bss : 0xc056b330 - 0xc06da3c0   (1469 kB)
-	//(__bss_start, __bss_stop)
-	.data : 0xc04dc000 - 0xc056a260   ( 569 kB)　//struct pglist_data *zone_pgdat:0xc0569724包含在data段中
-	//(_sdata, _edata)
-	.init : 0xc04c2000 - 0xc04da844   (  99 kB)
-	//(__init_begin, __init_end)
-	.text : 0xc0008000 - 0xc04c1860   (4839 kB)
-	//(_text, _etext)
-lowmem  : 0xc0000000 - 0xc3e00000   (  62 MB)
-//#define PAGE_OFFSET 0xc0000000
-//#high_memory :: 0xc3e00000
-modules : 0xbf800000 - 0xc0000000   (   8 MB)
-//#define MODULES_VADDR		(PAGE_OFFSET - SZ_8M)
-接着需要打印：
-物理内存开始：　PHYS_OFFSET
-
-//#define PHYS_OFFSET	PLAT_PHYS_OFFSET
-mach-q3f/include/mach/memory.h:14:      #define PLAT_PHYS_OFFSET	UL(0x40000000)
-mach-q3f/include/mach/imap-iomap.h:10:  #define IMAP_SDRAM_BASE		0x40000000
-//#define ___RBASE   phys_to_virt(IMAP_SDRAM_BASE + 0x3800000) 寄存器地址空间
-//#define PHYS_PFN_OFFSET	(PHYS_OFFSET >> PAGE_SHIFT)     ::0x40000
-//#define ARCH_PFN_OFFSET		PHYS_PFN_OFFSET								::0x40000
-
-void *page_address(struct page *page);
-struct page *pfn_to_page(int pfn);
-struct page *virt_to_page(void *kaddr);
-
-virt_to_page(addr)产生线性地址对应的页描述符地址。pfn_to_page(pfn)产生对应页框号的页描述符地址；page_to_pfn(page)产生对应页描述符地址的页框号
-//#define __virt_to_phys(x)	((x) - PAGE_OFFSET + PHYS_OFFSET)
-//#define __phys_to_virt(x)	((x) - PHYS_OFFSET + PAGE_OFFSET)
-//#define __pa(x)			__virt_to_phys((unsigned long)(x))
-//#define __va(x)			((void *)__phys_to_virt((unsigned long)(x)))
-//#define pfn_to_kaddr(pfn)	__va((pfn) << PAGE_SHIFT)
-
-//#if defined(CONFIG_FLATMEM)
-//#define __pfn_to_page(pfn)	(mem_map + ((pfn) - ARCH_PFN_OFFSET))
-//#define __page_to_pfn(page)	((unsigned long)((page) - mem_map) + ARCH_PFN_OFFSET)
-//#define page_to_pfn __page_to_pfn
-//#define pfn_to_page __pfn_to_page
-//#endif
-
-//#define virt_to_page(kaddr)	pfn_to_page(__pa(kaddr) >> PAGE_SHIFT)
-//#define virt_addr_valid(kaddr)	((unsigned long)(kaddr) >= PAGE_OFFSET && (unsigned long)(kaddr) < (unsigned long)high_memory)cgroup_init_early
-//#define page_to_phys(page)      ((dma_addr_t)page_to_pfn(page) << PAGE_SHIFT)
-//#define page_to_virt(page)	pfn_to_virt(page_to_pfn(page))
-
 //启动进程的过程中需要为进程分配内存，sys_execve() --> SYSCALL_DEFINE3(execve...) --> do_execve() --> do_execve_common --> bprm_mm_init()
 int bprm_mm_init(struct linux_binprm *bprm)
 	struct mm_struct *mm = bprm->mm = mm_alloc();
@@ -730,7 +874,7 @@ int bprm_mm_init(struct linux_binprm *bprm)
 
 pgd_t 用于全局页目录项；pte_t 用于直接页目录项
 
-根据虚拟地址获取物理页的示例代码详见mm/memory.c中的函数　follow_page()
+
 
 //添加内存条
 //#define NR_BANKS	CONFIG_ARM_NR_BANKS linux-menuconfig 中配置内存条个数
@@ -787,12 +931,6 @@ struct page *follow_page_mask(struct vm_area_struct *vma,　unsigned long addres
 **创建新进程内存映射过程**<br>
 首先要为新进程创建一个新的页面目录PGD到task_struct.(struct mm_struct)mm->pgd，并从内核的页面目录swapper_pg_dir中复制内核区间页面目录项至新建进程页面目录PGD的相应位置，具体过程如下：do_fork() –> copy_mm() –> mm_init() –> pgd_alloc() –> set_pgd_fast() –> get_pgd_slow() –> memcpy(&PGD + USER_PTRS_PER_PGD, swapper_pg_dir + USER_PTRS_PER_PGD, (PTRS_PER_PGD - USER_PTRS_PER_PGD) * sizeof(pgd_t))；这样一来，每个进程的页面目录就分成了两部分，第一部分为“用户空间”，用来映射其整个进程空间（0x0000 0000－0xBFFF FFFF）即3G字节的虚拟地址；第二部分为“系统空间”，用来映射（0xC000 0000－0xFFFF FFFF）1G字节的虚拟地址。可以看出Linux系统中每个进程的页面目录的第二部分是相同的，所以从进程的角度来看，每个进程有4G字节的虚拟空间
 
-## 2.6 内核初始化阶段内存管理
-
-
-
-memblock_add()函数只被调用一次,参数(base:40000000 size:3e00000),在arm_memblock_init()函数中.
-
 ## 2.6 伙伴系统
 **伙伴系统文档**<br>
 	https://blog.csdn.net/vanbreaker/article/details/7605367
@@ -825,10 +963,6 @@ struct page *buffered_rmqueue(struct zone *preferred_zone, struct zone *zone, in
 arm_dma_alloc() 函数,如果从dev的cma中分配,应该不需要伙伴机制的加入,单纯的使用bitmap机制管理就好了;如果从全局的cma中分配,需要伙伴机制的配合管理.
 ```cpp
 ret = dma_declare_contiguous(&da8xx_dsp.dev, rproc_size, rproc_base, 0); 为设备分配cma内存
-void __init arm_memblock_init(struct meminfo *mi, struct machine_desc *mdesc)
-	|--> dma_contiguous_reserve(min(arm_dma_limit, arm_lowmem_limit));//void __init dma_contiguous_reserve(phys_addr_t limit)
-		dma_declare_contiguous(NULL, selected_size, 0, limit);
-
 ```
 可以查询使能 CONFIG_CMA_DEBUG_BITMAP 来打印cma的相关调试内容.
 
@@ -984,7 +1118,6 @@ struct per_cpu_pageset {
 static DEFINE_PER_CPU(struct per_cpu_pageset, boot_pageset);
 static __meminit void zone_pcp_init(struct zone *zone)
   zone->pageset = &boot_pageset;
-
 ```
 
 在内核中只有一个子系统会积极的尝试为任何对象维护per-cpu上的list链表, 这个子系统就是slab分配器. 提供小内存块不是slab分配器的唯一任务. 由于结构上的特点. 它也用作一个缓存. 主要针对经常分配并释放的对象. 通过建立slab缓存, 内核能够储备一些对象, 供后续使用, 即使在初始化状态, 也是如此. 建立和使用缓存的任务不是特别困难. 必须首先用kmem_cache_create建立一个适当的缓存, 接下来即可使用kmem_cache_alloc和kmem_cache_free分配和释放其中包含的对象。slab分配器负责完成与伙伴系统的交互，来分配所需的页. 所有活动缓存的列表保存在/proc/slabinfo
@@ -1003,7 +1136,98 @@ void vfree(const void *addr)
 pg_data_t 中　struct zone node_zones[MAX_NR_ZONES];//对应一个内存node, 这个node包含多个zone
 enum node_states, 我们系统，node状态应该是  N_NORMAL_MEMORY
 ```
-## 3 重要数据结构
+## 3 初始化阶段内存管理
+
+### 3.1 bootmem
+```cpp
+typedef struct bootmem_data {
+	unsigned long node_min_pfn; //节点起始地址
+	unsigned long node_low_pfn; //低端内存最后一个page的页帧号
+	void *node_bootmem_map; //指向内存中位图bitmap所在的位置
+	unsigned long last_end_off; //分配的最后一个页内的偏移，如果该页完全使用，则offset为0
+	unsigned long hint_idx;
+	struct list_head list;
+} bootmem_data_t;
+
+unsigned long min_low_pfn; //系统可用的第一个pfn, 0, 对应pfn::0x40000
+unsigned long max_low_pfn; //系统可用的最后一个PFN,0x3e00, 对应pfn::0x43e00, 0x3e00对应15872个实际的page
+unsigned long max_pfn; //系统可用的最后一个PFN,0x3e00,arm_bootmem_free()调用后是0x40000+0x3e00
+//PHYS_PFN_OFFSET :: 0x40000 页帧号开始偏移．
+bootmem_data_t bootmem_node_data[MAX_NUMNODES] __initdata;
+struct pglist_data __refdata contig_page_data = {	.bdata = &bootmem_node_data[0] };
+static struct list_head bdata_list = LIST_HEAD_INIT(bdata_list);
+static int bootmem_debug;
+
+//start_kernel-->setup_arch-->paging_init-->bootmem_init
+void arm_bootmem_init(unsigned long start_pfn,unsigned long end_pfn)
+//申请一个bitmap并且0初始化，然后把memblock管理的页面空闲和占用信息映射到这个bitmap中
+	boot_pages = bootmem_bootmap_pages(end_pfn - start_pfn);//计算mapping需要的管理页面的个数,每个page对应其中一个bit.
+	bitmap = memblock_alloc_base(boot_pages << PAGE_SHIFT, L1_CACHE_BYTES,__pfn_to_phys(end_pfn));//分配管理内存,大概0x1000
+	|--> init_bootmem_node(pgdat, __phys_to_pfn(bitmap), start_pfn, end_pfn);//--->init_bootmem_core(pgdat->bdata, freepfn, startpfn, endpfn);		//初始化bootmem,然后将memblock当前mem占用情况转换到bootmem机制::->//unsigned long __init init_bootmem_core(bootmem_data_t *bdata,unsigned long mapstart, unsigned long start, unsigned long end)
+		bdata->node_bootmem_map = phys_to_virt(PFN_PHYS(mapstart));
+		bdata->node_min_pfn = start;	bdata->node_low_pfn = end;
+		link_bootmem(bdata);//void  link_bootmem(bootmem_data_t *bdata) //-->list_add_tail(&bdata->list, &bdata_list);
+		mapsize = bootmap_bytes(end - start); 		memset(bdata->node_bootmem_map, 0xff, mapsize);
+	for_each_memblock(memory, reg)	free_bootmem(__pfn_to_phys(start), (end - start) << PAGE_SHIFT);
+	for_each_memblock(reserved, reg) reserve_bootmem(__pfn_to_phys(start),(end - start) << PAGE_SHIFT, BOOTMEM_DEFAULT);
+```
+
+### 3.2 memblock
+
+```cpp
+struct memblock_region {
+	phys_addr_t base;
+	phys_addr_t size;
+};
+struct memblock_type {
+	unsigned long cnt;	//当前集合(memory或者reserved)中记录的内存区域个数
+	unsigned long max;	//当前集合(memory或者reserved)中可记录的内存区域的最大个数
+	phys_addr_t total_size;	/* size of all regions */
+	struct memblock_region *regions; //内存区域结构指针
+};
+struct memblock {
+	phys_addr_t current_limit; //指出了内存块的大小限制, 用于限制通过memblock_alloc的内存申请
+	struct memblock_type memory; //是可用内存的集合
+	struct memblock_type reserved; //已分配内存的集合
+};
+//#define INIT_MEMBLOCK_REGIONS	128
+static struct memblock_region memblock_memory_init_regions[INIT_MEMBLOCK_REGIONS];
+static struct memblock_region memblock_reserved_init_regions[INIT_MEMBLOCK_REGIONS];
+struct memblock memblock = {
+	.memory.regions		= memblock_memory_init_regions,
+	.memory.cnt		= 1,	/* empty dummy entry */
+	.memory.max		= INIT_MEMBLOCK_REGIONS,
+	.reserved.regions	= memblock_reserved_init_regions,
+	.reserved.cnt		= 1,	/* empty dummy entry */
+	.reserved.max		= INIT_MEMBLOCK_REGIONS,
+	.current_limit		= MEMBLOCK_ALLOC_ANYWHERE,
+};
+
+static int memblock_debug, memblock_can_resize, memblock_memory_in_slab = 0, memblock_reserved_in_slab = 0;
+
+phys_addr_t memblock_alloc(phys_addr_t size, phys_addr_t align);
+phys_addr_t memblock_alloc_base(phys_addr_t size, phys_addr_t align, phys_addr_t max_addr);
+```
+
+内核初始化过程中调用流程：
+```cpp
+//start_kernel-->...
+void __init arm_memblock_init(struct meminfo *mi, struct machine_desc *mdesc)
+	//for (i = 0; i < mi->nr_banks; i++) memblock_add(mi->bank[i].start, mi->bank[i].size);//实际代码执行时只有i=0
+	memblock_add(mi->bank[0].start, mi->bank[0].size);//bankstart:40000000 banksize:3e00000,添加到 memblock.memory
+	memblock_reserve(__pa(_stext), _end - _stext); //reserve内核的代码和数据段
+	arm_mm_memblock_reserve();//--> memblock_reserve(__pa(swapper_pg_dir), SWAPPER_PG_DIR_SIZE); 为mm管理页目录信息预留16k内存::0x40004000-->0x40008000
+	arm_dt_memblock_reserve();//为设备树管理预留内存
+	//if (mdesc->reserve)		mdesc->reserve();　实际调用 q3f_reserve()
+	q3f_reserve();//为dsp预留0x43e00000开始的0x180000长度内存　-->memblock_reserve(arm_lowmem_limit, 0x180000);
+	//dma_contiguous_reserve(min(arm_dma_limit, arm_lowmem_limit));
+	|--> dma_contiguous_reserve(arm_lowmem_limit);//void __init dma_contiguous_reserve(phys_addr_t limit)
+		dma_declare_contiguous(NULL, selected_size, 0, limit); //-->memblock_reserve(base, size) cma内存从0x41800000开始的32M
+```
+
+可以调用`memblock_add_region()`添加新的内存段，调用`memblock_remove()`删除内存段。`memblock.memory`管理当前有效的内存段，`memblock.reserved`管理当前已经分配的内存段，调用`memblock_alloc()`的时候，会对比两个内存块的数据结构，找到一个空闲段，把它添加到`memblock.reserved`中，然后给内核使用。整体机制相当简单，不需要详细了解实现代码
+
+## 4 用户空间和内核空间
 **linux内存管理浅析**<br>
   zone和vma的部分，值得参考
   https://blog.csdn.net/ctthuangcheng/article/details/8915146
@@ -1027,8 +1251,6 @@ https://blog.csdn.net/Tommy_wxie/article/details/17122923
      那么为什么不总是在malloc的时候去mmap一个新的vma呢？第一，对于小空间的分配与回收，被libc管理的堆空间已经能够满足需要，不必每次都去进行系统调用。并且vma是以page为单位的，最小就是分配一个页；第二，太多的vma会降低系统性能。缺页异常、vma的新建与销毁、堆空间的大小调整、等等情况下，都需要对vma进行操作，需要在当前进程的所有vma中找到需要被操作的那个（或那些）vma。vma数目太多，必然导致性能下降。（在进程的vma较少时，内核采用链表来管理vma；vma较多时，改用红黑树来管理。）
 
 **用户的栈**<br>
-
-
      与堆一样，栈也是一个vma（图：左中），这个vma是一端固定、一端可伸（注意，不能缩）的。这个vma比较特殊，没有类似brk的系统调用让这个vma伸展，它是自动伸展的。
      当用户访问的虚拟地址越过这个vma时，内核会在处理缺页异常的时候将自动将这个vma增大。内核会检查当时的栈寄存器（如：ESP），访问的虚拟地址不能超过ESP加n（n为CPU压栈指令一次性压栈的最大字节数）。也就是说，内核是以ESP为基准来检查访问是否越界。
      但是，ESP的值是可以由用户态程序自由读写的，用户程序如果调整ESP，将栈划得很大很大怎么办呢？内核中有一套关于进程限制的配置，其中就有栈大小的配置，栈只能这么大，再大就出错。
@@ -1055,84 +1277,9 @@ void *kmap_atomic(struct page *page, enum km_type type);
 void kunmap_atomic(void *addr, enum km_type type);
 ```
 
-
-**内存管理基本概念**
-下面宏可以禁止CMA的共享么？
-　　CONFIG_CMA_MIGRATE_OFF
-
-打印  VMALLOC_RESERVE　　VMALLOC_START  VMALLOC_END VMALLOC_OFFSET
-
-内核线性地址空间部分
-1. 从PAGE_OFFSET（通常定义为3G）开始，
-2. 为了将内核装入内存，从PAGE_OFFSET开始8M线性地址用来映射内核所在的物理内存地址（也可以说是内核所在虚拟地址是从PAGE_OFFSET开始的）；
-3. 接下来是mem_map数组，
-4. vmalloc()使用从VMALLOC_START到VMALLOC_END
-
-32位的地址空间被分为3部分:
-1. 页目录表Directory 	 最高10位
-2. 页中间表Table 	     中间10位
-3. 页内偏移 	           最低12位
-　即页表被划分为页目录表Directory和页中间表Tabl两个部分，内核通常只为进程实际使用的那些虚拟内存区请求页表来减少内存使用量.
-
-
-Linux内核通过四级页表将虚拟内存空间分为5个部分(4个页表项用于选择页, 1个索引用来表示页内的偏移). 各个体系结构不仅地址长度不同, 而且地址字拆分的方式也不一定相同. 因此内核使用了宏用于将地址分解为各个分量.
-
-![linux页表](pic_dir/linux页表.png)
-
-
-c20设备，通常只支持ZONE_NORMAL,ZONE_MOVABLE两种ZONE，因为物理内存不超过1G，不需要使用高端内存，硬件上不需要DMA区域
-
-```cpp
-//在UMA结构的机器中, 只有一个node结点即contig_page_data
-extern bootmem_data_t bootmem_node_data[];
-struct pglist_data __refdata contig_page_data = {
-	.bdata = &bootmem_node_data[0]
-};
-
-//#define NODE_DATA(nid)		(&contig_page_data)
-//#define NODE_MEM_MAP(nid)	mem_map
-
-struct bootmem_data;
-typedef struct pglist_data {
-	struct zone node_zones[MAX_NR_ZONES];//每个Node划分为不同的zone，分别为ZONE_DMA，ZONE_NORMAL，ZONE_HIGHMEM
-  int nr_zones;//当前节点中不同内存域zone的数量，1到3个之间
-
-	struct zonelist node_zonelists[MAX_ZONELISTS];
-//#ifdef CONFIG_FLAT_NODE_MEM_MAP	/* means !SPARSEMEM */
-	struct page *node_mem_map; //node中的第一个page，它可以指向mem_map中的任何一个page，指向page实例数组的指针，用于描述该节点所拥有的的物理内存页，它包含了该页面所有的内存页，被放置在全局mem_map数组中
-//#ifdef CONFIG_MEMCG
-	struct page_cgroup *node_page_cgroup;
-//#endif
-//#endif
-//#ifndef CONFIG_NO_BOOTMEM
-	struct bootmem_data *bdata;//这个仅用于引导程序boot 的内存分配，内存在启动时，也需要使用内存，在这里内存使用了自举内存分配器，这里bdata是指向内存自举分配器的数据结构的实例
-//#endif
-	unsigned long node_start_pfn;//pfn是page frame number的缩写。这个成员是用于表示node中的开始那个page在物理内存中的位置的。是当前NUMA节点的第一个页帧的编号，系统中所有的页帧是依次进行编号的，这个字段代表的是当前节点的页帧的起始值，对于UMA系统，只有一个节点，所以该值总是0
-	unsigned long node_present_pages; //node中的真正可以使用的page数量
-	unsigned long node_spanned_pages; //该节点以页帧为单位的总长度，这个不等于前面的node_present_pages,因为这里面包含空洞内存
-	int node_id;
-	nodemask_t reclaim_nodes;	/* Nodes allowed to reclaim from */
-	wait_queue_head_t kswapd_wait; //node的等待队列，交换守护列队进程的等待列表
-	wait_queue_head_t pfmemalloc_wait;
-	struct task_struct *kswapd;	/* Protected by lock_memory_hotplug() */
-	int kswapd_max_order; //需要释放的区域的长度，以页阶为单位
-	enum zone_type classzone_idx;
-} pg_data_t;
-
-EXPORT_SYMBOL(contig_page_data);
-
-//每个物理的页由一个struct page的数据结构对象来描述。页的数据结构对象都保存在mem_map全局数组中，该数组通常被存放在ZONE_NORMAL的首部，或者就在小内存系统中为装入内核映像而预留的区域之后。从载入内核的低地址内存区域的后面内存区域，也就是ZONE_NORMAL开始的地方的内存的页的数据结构对象，都保存在这个全局数组中。
-unsigned long max_mapnr;
-struct page *mem_map;
-
-```
-
-## 4 用户空间和内核空间
-
 **为什么要使用copy_from_user**<br>
 原理上，内核态是可以直接访问用户态的虚拟地址空间的，所以如果需要在内核态获取用户态地址空间的数据的话，理论上应该是可以直接访问的，但为什么还需要使用copy_from_user接口呢？
 因为：直接访问的话，无法保证被访问的用户态虚拟地址是否有对应的页表项，即无法保证该虚拟地址已经分配了相应的物理内存，如果此时没有对应的页表项，那么此时将产生page fault，导致流程混乱，原则上如果没有页表项(即没有物理内存时)，是不应该对齐进行操作的。 所以直接操作有比较大的风险，而copy_from_user本质上也只是做了相关判断和校验，保证不会出现相关异常而已。 page fault是硬件提供的特性，本质为一种“异常”(应该了解“异常”和“中断”的概念吧~)，实际由硬件直接触发，触发的条件为：CPU访问某线性地址时，如果没有找到其对应的页表项，则由硬件直接触发page fault。发生缺页的上下文也有可能位于内核态，但发生缺页的地址只能位于用户态地址空间或者内核态的vmalloc区，否则就会出现oops。对内核来说(以32位为例)，线性映射(直接通过TASK_SIZE偏移映射)的内存(对32位系统来说，就是前896M，即Zone_Normal)相应的页表在内核初始化时就已经建立，所以这部分内存对应的虚拟地址不可能产生page fault。
-
 
 **内核页表**<br>
 
@@ -1148,7 +1295,6 @@ vmalloc区
 其中，线性映射区即通过TASK_SIZE偏移进行映射的区域，对32系统来说就是0-896M这部分区域，映射对应的虚拟地址区域为TASK_SIZE-TASK_SIZE+896M。这部分区域在内核初始化时就已经完成映射，并创建好相应的页表，即这部分虚拟内存区域不会发生page fault。
 vmalloc区，为896M-896M+128M，这部分区域用于映射高端内存，有三种映射方式：vmalloc、固定、临时，这里就不像述了。。
 以vmalloc为例(最常使用)，这部分区域对应的线性地址在内核使用vmalloc分配内存时，其实就已经分配了相应的物理内存，并做了相应的映射，建立了相应的页表项，但相关页表项仅写入了“内核页表”，并没有实时更新到“进程页表中”，内核在这里使用了“延迟更新”的策略，将“进程页表”真正更新推迟到第一次访问相关线性地址，发生page fault时，此时在page fault的处理流程中进行“进程页表”的更新：
-
 
 缺页地址位于内核空间。并不代表异常发生于内核空间，有可能是用户态访问了内核空间的地址，也就是说访问了vmalloc区的地址，这时候需要将主内核页表向当前进程的内核页表同步
 
@@ -1176,18 +1322,22 @@ Exclusive monitor实现所处的位置: 根据LDXR/STXR 访问的memory的属性
 
 对于normal non-cacheable，或者Device类型的memory属性的memory地址，cpu会发出exclusive access的AXI 访问（AxLOCK signals ）到总线上去，总线需要有对应的External exclusive monitor支持，否则会返回错误。例如， 假如某个SOC不支持外部global exclusivemonitor，软件把MMU disabled的情况下，启动SMP Linux，系统是没法启动起来的，在spinlock处会挂掉。
 
-
-* LDREX，本质上是一个LDR，CPU1做cache linefill，然后设置该line为E状态（Exclusive），额外的一个作用是设置exclusive monitor的状态为Exclusive；其他cpu做LDREX，该line也会分配到它的内部cache里面，状态都设置为Shared ，也会设置本CPU的monitor的状态。当一个CPU 做STREX时候，这个Write操作会把其它CPU里面的cacheline数据给invalidate掉。同时也把monitor的状态清掉，从Exclusive变成Open的状态，这个MESI协议导致cachline的状态在多CPU的变化，是执行Write操作一次性改变的。这样在保证数据一致性的同时，也保证了montitor的状态更新同步改变。
-
-
-
+LDREX，本质上是一个LDR，CPU1做cache linefill，然后设置该line为E状态（Exclusive），额外的一个作用是设置exclusive monitor的状态为Exclusive；其他cpu做LDREX，该line也会分配到它的内部cache里面，状态都设置为Shared ，也会设置本CPU的monitor的状态。当一个CPU 做STREX时候，这个Write操作会把其它CPU里面的cacheline数据给invalidate掉。同时也把monitor的状态清掉，从Exclusive变成Open的状态，这个MESI协议导致cachline的状态在多CPU的变化，是执行Write操作一次性改变的。这样在保证数据一致性的同时，也保证了montitor的状态更新同步改变。
 
 ## 6 内存相关命令
+
+**查询命令**<br>
+cat /proc/zoneinfo
+cat /proc/buddyinfo
+cat /proc/slabinfo
+cat /proc/vmallocinfo
+cat /proc/pagetypeinfo
 
 **非常重要的小调试工具devmem**<br>
 devmem的方式是提供给驱动开发人员，在应用层能够侦测内存地址中的数据变化，以此来检测驱动中对内存或者相关配置的正确性验证. 这个工具的原理也比较简单，就是应用程序通过mmap函数实现对/dev/mem驱动中mmap方法的使用，映射了设备的内存到用户空间，实现对这些物理地址的读写操作。基本Usage: devmem ADDRESS [WIDTH [VALUE]].如果/dev下没有mem这个node，会出现错误.这时可以在Host系统中手动创建一个（例如在NFS root filesystem模式）： host@host-laptop:~/embedded/tftpboot/nfsroot/dev$ sudo mknod mem -m666 c 1 1 注意
 这里的权限是666，允许任何人任意读写，可以很好的配合程序debug。结合symbol map，可以方便的查看和改写内核中重要的全局变量。范例，在地址0x97000000写入32bit值0x7777ABCD :  devmem 0x97000000 32 0x7777ABCD
 
+devmem程序的实现如下
 ```cpp
 //#include <stdio.h> #include <stdlib.h> #include <unistd.h> #include <string.h> #include <errno.h> #include <signal.h> #include <fcntl.h> #include <ctype.h> #include <termios.h> #include <sys/types.h> #include <sys/mman.h> #define FATAL do { fprintf(stderr, "Error at line %d, file %s (%d) [%s]\n", \ __LINE__, __FILE__, errno, strerror(errno)); exit(1); } while(0) #define MAP_SIZE 4096UL #define MAP_MASK (MAP_SIZE - 1) int main(int argc, char **argv) { int fd; void *map_base, *virt_addr; unsigned long read_result, writeval; off_t target; int access_type = 'w'; if(argc < 2) {//若参数个数少于两个则打印此工具的使用方法 fprintf(stderr, "\nUsage:\t%s { address } [ type [ data ] ]\n" "\taddress : memory address to act upon\n" "\ttype    : access operation type : [b]yte, [h]alfword, [w]ord\n" "\tdata    : data to be written\n\n", argv[0]); exit(1); } target = strtoul(argv[1], 0, 0); if(argc > 2) access_type = tolower(argv[2][0]); if((fd = open("/dev/mem", O_RDWR | O_SYNC)) == -1) FATAL; printf("/dev/mem opened.\n"); fflush(stdout); /* Map one page */ //将内核空间映射到用户空间 map_base = mmap(0, MAP_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, target & ~MAP_MASK); if(map_base == (void *) -1) FATAL; printf("Memory mapped at address %p.\n", map_base); fflush(stdout); virt_addr = map_base + (target & MAP_MASK); //针对不同的参数获取不同类型内存数据 &nbsp; switch(access_type) { case 'b': read_result = *((unsigned char *) virt_addr); break; case 'h': read_result = *((unsigned short *) virt_addr); break; case 'w': read_result = *((unsigned long *) virt_addr); break; default: fprintf(stderr, "Illegal data type '%c'.\n", access_type); exit(2); } printf("Value at address 0x%X (%p): 0x%X\n", target, virt_addr, read_result); fflush(stdout); //若参数大于3个，则说明为写入操作，针对不同参数写入不同类型的数据 if(argc > 3) { writeval = strtoul(argv[3], 0, 0); switch(access_type) { case 'b': *((unsigned char *) virt_addr) = writeval; read_result = *((unsigned char *) virt_addr); break; case 'h': *((unsigned short *) virt_addr) = writeval; read_result = *((unsigned short *) virt_addr); break; case 'w': *((unsigned long *) virt_addr) = writeval; read_result = *((unsigned long *) virt_addr); break; } printf("Written 0x%X; readback 0x%X\n", writeval, read_result); fflush(stdout); } if(munmap(map_base, MAP_SIZE) == -1) FATAL; close(fd); return 0; }
 ```
