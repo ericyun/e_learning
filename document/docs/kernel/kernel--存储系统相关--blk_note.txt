@@ -2,10 +2,7 @@ BLK NOTE
 按照文档标准来定义。大文件关联函数有优势，但手动翻阅困难，需要建立索引。
 
 本文档索引信息：(名称必须唯二)
-- blk-core.c解析入口
-- genhd.c文件入口
 - mmc blk dev_ops入口:
-- mpage_writepages解析Plug
 - request_queue线程入口
 - mmc_bus_probe入口
 
@@ -17,7 +14,7 @@ blk_core.c解析入口
      mmc_blk_probe
           大部分其他函数都和probe的过程有关系。
      其他一些和request queue有关的函数
-          submit_bio和blk_queue_bio相关进入queue，blk_fetch_request相关出queue,blk_end_request相关request发送end回调
+          submit_bio 和 blk_queue_bio 相关进入queue， blk_fetch_request 相关出queue, blk_end_request 相关 request发送end回调
           attempt_plug_merge()等入queue时merge相关的函数
           plug机制
                主线：blk_start_plug blk_flush_plug_list blk_finish_plug
@@ -26,7 +23,7 @@ blk_core.c解析入口
      Helper function相关的函数
 其他文件内容解析
 block.c解析
-     mmc_blk_probe调用层次
+     mmc_blk_probe 调用层次
      mmc用的packed相关函数很多
      mmc命令封装和发送
 整体上异常处理函数占用大量篇幅
@@ -139,77 +136,6 @@ struct mmc_card {／／主要是保留卡的硬件属性相关信息
      unsigned int nr_parts;　／／分区的个数
 };
 
-struct gendisk系列数据结构：
-struct callback_head {
-     struct callback_head *next;
-     void (*func)(struct callback_head *head);
-};
-#define rcu_head callback_head
-struct hd_struct {
-     sector_t start_sect;//分区起始物理扇区号
-/** nr_sects is protected by sequence counter. One might extend a* partition while IO is happening to it and update of nr_sects
-* can be non-atomic on 32bit machines with 64bit sector_t.*/
-     sector_t nr_sects;//分区总扇区个数
-     seqcount_t nr_sects_seq;
-     sector_t alignment_offset;
-     unsigned int discard_alignment;
-     struct device __dev;
-     struct kobject *holder_dir;
-     int policy, partno;
-     struct partition_meta_info *info;
-#ifdef CONFIG_FAIL_MAKE_REQUEST
-int make_it_fail;
-#endif
-     unsigned long stamp;
-     atomic_t in_flight[2];
-#ifdef CONFIG_SMP
-struct disk_stats __percpu *dkstats;
-#else
-struct disk_stats dkstats;
-#endif
-     atomic_t ref;
-     struct rcu_head rcu_head;
-};
-struct disk_part_tbl {
-     struct rcu_head rcu_head;
-     int len;
-     struct hd_struct __rcu *last_lookup;
-     struct hd_struct __rcu *part[];//0长度数组，part[0]就是下面定义的struct hd_struct part0;
-};
-struct gendisk {
-/* major, first_minor and minors are input parameters only,* don't use directly. Use disk_devt() and disk_max_parts().*/
-     int major; /* major number of driver */
-     int first_minor;
-     int minors; /* maximum number of minors, =1 for  * disks that can't be partitioned. *///可能的分区个数
-
-     char disk_name[DISK_NAME_LEN]; /* name of major driver *///设备名称，对应主设备号
-     char *(*devnode)(struct gendisk *gd, umode_t *mode);
-
-     unsigned int events; /* supported events */
-     unsigned int async_events; /* async events, subset of all */
-
-/* Array of pointers to partitions indexed by partno.* Protected with matching bdev lock but stat and other
-* non-critical accesses use RCU. Always access through* helpers.*/
-
-     struct disk_part_tbl __rcu *part_tbl;//分区链表，初始化指向下面的part0是第一个，然后链表
-     struct hd_struct part0;
-
-     const struct block_device_operations *fops;//块设备ｏｐｓ
-     struct request_queue *queue;
-     void *private_data;
-
-int flags;
-struct device *driverfs_dev; // FIXME: remove
-struct kobject *slave_dir;
-
-struct timer_rand_state *random;
-atomic_t sync_io; /* RAID */
-struct disk_events *ev;
-#ifdef CONFIG_BLK_DEV_INTEGRITY
-struct blk_integrity *integrity;
-#endif
-int node_id;
-};
 struct mmc_blk_data {//gendisk的扩展，支配一个queue，在mmc_blk_alloc_req()函数分配和初始化
      spinlock_t lock;
      struct gendisk *disk;
@@ -241,29 +167,6 @@ struct mmc_blk_data {//gendisk的扩展，支配一个queue，在mmc_blk_alloc_r
      struct device_attribute power_ro_lock;
      int area_type;
 };
-
-static inline struct page *read_mapping_page(struct address_space *mapping, pgoff_t index, void *data)
-     filler = (filler_t *)mapping->a_ops->readpage;
-     return read_cache_page(mapping, index, filler, data);
-         struct page *page = read_cache_page_async(mapping, index, filler, data)
-              page = __read_cache_page(mapping, index, filler, data, gfp);
-              err = filler(data, page);    //
-         return wait_on_page_read(page);
-
-genhd.c文件入口
-subsys_initcall(genhd_device_init);
-static int __init genhd_device_init(void)
-     block_class.dev_kobj = sysfs_dev_block_kobj;     error = class_register(&block_class);
-     bdev_map = kobj_map_init(base_probe, &block_class_lock);
-     blk_dev_init();
-     register_blkdev(BLOCK_EXT_MAJOR, "blkext");
-     block_depr = kobject_create_and_add("block", NULL);/* create top-level block dir */
-int __init blk_dev_init(void)
-     kblockd_workqueue = alloc_workqueue("kblockd",WQ_MEM_RECLAIM | WQ_HIGHPRI, 0);
-     request_cachep = kmem_cache_create("blkdev_requests",sizeof(struct request), 0, SLAB_PANIC, NULL);
-     blk_requestq_cachep = kmem_cache_create("blkdev_queue",sizeof(struct request_queue), 0, SLAB_PANIC, NULL);
-
-很多disk_event相关的函数，暂时不要关注
 
 mmc blk dev_ops入口:
 static const struct block_device_operations mmc_bdops = {//mmc_blk_alloc_req()中注册为gendisk的fops
@@ -316,65 +219,9 @@ struct mmc_blk_ioc_data *mmc_blk_ioctl_copy_from_user(ic_ptr);
      idata->buf = kzalloc(idata->buf_bytes, GFP_KERNEL);//分配buf
      copy_from_user(idata->buf, (void __user *)(unsigned long)idata->ic.data_ptr, idata->buf_bytes);//copy数据
 
-mpage_writepages解析Plug
-int mpage_writepages(struct address_space *mapping, struct writeback_control *wbc, get_block_t get_block)
-     struct blk_plug plug;//mpage_writepages一般在回写函数中调用
-     blk_start_plug(&plug);
-          struct task_struct *tsk = current; tsk->plug = plug;
-     //把紧密耦合的数据块先plug，全部request完毕后unplug，再一起加入到块设备的queue唤醒处理thread
-     //request_queue线程取request需要spin_lock_irq(q->queue_lock);如果每个request进入queue也都要lock，必然导致频繁的竞争
-     //所以通过plug的方式，减少竞争。但是，不同文件之间，好像无法从这个机制中受益。那现在我只需要考虑ｄｉｏ的方式下，不同文件之间如何
-     //受益就好了吧。
-     if(!get_block)
-     ret = generic_writepages(mapping, wbc);
-else {
-     struct mpage_data mpd = {
-         .bio = NULL,.last_block_in_bio = 0,.get_block = get_block,.use_writepage = 1,};
-     ret = write_cache_pages(mapping, wbc, __mpage_writepage, &mpd);
-     if (mpd.bio)     mpage_bio_submit(WRITE, mpd.bio)
-}
-     blk_finish_plug(&plug);　//阻塞调用
-          blk_flush_plug_list(plug, false); current->plug = NULL;//
-               flush_plug_callbacks(plug, from_schedule);//struct blk_plug *plug->cb_list
-                    foreach_in_cb_list      cb->callback(cb, from_schedule);
-               foreach rq = list_entry_rq(list.next);　q = rq->q;
-                    queue_unplugged(q, depth, from_schedule);//
-                         if (from_schedule)
-                              blk_run_queue_async(q);-->mod_delayed_work(kblockd_workqueue, &q->delay_work, 0);
-                         else
-                              __blk_run_queue(q);--->q->request_fn(q);//mmc_request_fn
 
-void bdi_start_background_writeback(struct backing_dev_info *bdi)
-static void end_bio_bh_io_sync(struct bio *bio, int err)
-     struct buffer_head *bh = bio->bi_private;
-     bh->b_end_io(bh, test_bit(BIO_UPTODATE, &bio->bi_flags));
-     bio_put(bio);
-ll_rw_block在buffer.c
-struct buffer_head *bhs[]-->bio-->request->mmc_request的数据流过程
-应该把write和read两个函数的实现放在这个文档中。
-void ll_rw_block(int rw, int nr, struct buffer_head *bhs[])//write发送多个buffer，mapping层到block层
-     submit_bh(WRITE, bh);
-         bio = bio_alloc(GFP_NOIO, 1);
-         bio->bi_end_io = end_bio_bh_io_sync;
-         submit_bio(int rw, struct bio *bio);　//blk_core.c内核block层提供给buffer.c的接口
-              generic_make_request(struct bio *bio);
-                   struct request_queue *q = bdev_get_queue(bio->bi_bdev);
-                   q->make_request_fn(q, bio); //blk_queue_bio 回调函数的方式实现分层模型,后续进入queue相关处理
-void blk_queue_bio(struct request_queue *q, struct bio *bio)//bio添加到reqeust_queue
-     blk_queue_bounce(q, &bio);
-     if (attempt_plug_merge(q, bio, &request_count))return;//尝试合并到当前plug的链表，然后尝试其他合并
-     //优先后向合并，一般写入地址是递增的，所以hash表以上个buffer的结束地址为索引，新的请求添加到前面buffer的后面，所以成为后向合并。
-     req = get_request(q, rw_flags, bio, GFP_NOIO);//获取一个free的struct request
-     init_request_from_bio(req, bio);//用bio封装初始化request
-     plug = current->plug;
-     if (plug){
-          list_add_tail(&req->queuelist, &plug->list);     drive_stat_acct(req, 1);
-     }else{
-          add_acct_request(q, req, where);//新的request添加到request_queue
-               __elv_add_request(q, rq, where);
-          __blk_run_queue(q);-->__blk_run_queue_uncond(q);
-              q->request_fn(q);　//mmc_request_fn//上层发送bio到request_queue，可能唤醒thread处理
-     }
+
+
 static void mmc_request_fn(struct request_queue *q)     //进入回调函数继续解析上面流程
      wake_up_interruptible(&cntx->wait);
      or wake_up_process(mq->thread);--->唤醒线程mmc_queue_thread
@@ -389,7 +236,7 @@ static int mmc_queue_thread(void *d)//顺序发送块设备request_queue内容,�
                if (rq)blk_start_request(rq);
                     blk_dequeue_request(req);　blk_add_timer(req);//摘取req，分配发送timer，发送结束停止timer
           mq->mqrq_cur->req = req;
-          mq->issue_fn(mq, req); //mmc_blk_issue_rq，发送从request_queue中取出的request
+          mq->issue_fn(mq, req); // mmc_blk_issue_rq ，发送从request_queue中取出的request
           mq->mqrq_prev->brq.mrq.data = NULL;  mq->mqrq_prev->req = NULL;//清空request和data之后会赋这个空值给mqrq_cur
           tmp = mq->mqrq_prev; mq->mqrq_prev = mq->mqrq_cur;     mq->mqrq_cur = tmp;
           //当前request变成prev的，因为发送没结束，才定义的mq->mqrq_prev，发送完毕会复位它
@@ -458,7 +305,9 @@ static void blk_delay_work(struct work_struct *work)
      struct request_queue *q = container_of(work, struct request_queue, delay_work.work);
      __blk_run_queue(q);
 
-## 1. mmc_bus_probe入口:永远放在最下，方便索引
+
+
+1. mmc_bus_probe入口:永远放在最下，方便索引
 设置bio到request的cb函数blk_queue_bio,request到queue的cb函数mmc_request_fn，queue线程和queue分发request的cb函数mmc_blk_issue_rq
 分配和初始化gendisk,添加磁盘设备和各分区设备
 为设备分配一个request_queue,

@@ -6,6 +6,9 @@
 | 初版 | 2018/04/10 | 员清观 |  |
 
 ## 1 地址空间
+
+![linux内存管理框架图](pic_dir/linux内存管理框架图.png)
+
 初始化阶段内存布局打印:
 ```cpp
 [    0.000000] Dentry cache hash table entries: 8192 (order: 3, 32768 bytes)
@@ -342,7 +345,7 @@ SECTIONS
 ```cpp
 phys_addr_t arm_lowmem_limit; //0x43e00000 物理地址的上边界，应该就对应着ZONE_NORMAL的上边界
 void * high_memory; //0xc3e00000 high_memory = __va(arm_lowmem_limit - 1) + 1;
-
+void * vmalloc_min = (void *)(VMALLOC_END - (240 << 20) - VMALLOC_OFFSET);
 临时映射线性地址空间   fixmap  : 0xfff00000 - 0xfffe0000   ( 896 kB)
 //#define FIXADDR_START		0xfff00000UL
 //#define FIXADDR_TOP		0xfffe0000UL
@@ -420,7 +423,6 @@ typedef struct pglist_data {
 	enum zone_type classzone_idx;
 } pg_data_t;
 
-
 unsigned long max_mapnr;
 struct page *mem_map; //页的数据结构对象都保存在mem_map全局数组中，该数组通常被存放在ZONE_NORMAL的首部，或者就在小内存系统中为装入内核映像而预留的区域之后。从载入内核的低地址内存区域的后面内存区域，也就是ZONE_NORMAL开始的地方的内存的页的数据结构对象，都保存在这个全局数组中
 //#define NODE_DATA(nid)		(&contig_page_data)
@@ -482,32 +484,31 @@ struct free_area {
 enum zone_watermarks {
 	WMARK_MIN,	WMARK_LOW,	WMARK_HIGH,	NR_WMARK
 };
+
 //#define min_wmark_pages(z) (z->watermark[WMARK_MIN])
 //#define low_wmark_pages(z) (z->watermark[WMARK_LOW])
 //#define high_wmark_pages(z) (z->watermark[WMARK_HIGH])
 
 struct zone {
   unsigned long watermark[NR_WMARK];//每个 zone 在系统启动时会计算出 3 个水位值, 分别为 WMAKR_MIN, WMARK_LOW, WMARK_HIGH 水位, 这在页面分配器和 kswapd 页面回收中会用到
-  unsigned long percpu_drift_mark;
-  unsigned long		lowmem_reserve[MAX_NR_ZONES];//zone 中预留的内存, 为了防止一些代码必须运行在低地址区域，所以事先保留一些低地址区域的内存
-  unsigned long		dirty_balance_reserve;
+  unsigned long percpu_drift_mark, dirty_balance_reserve;
+  unsigned long lowmem_reserve[MAX_NR_ZONES];//zone 中预留的内存, 为了防止一些代码必须运行在低地址区域，所以事先保留一些低地址区域的内存
   //这个数组用于实现每个CPU的热/冷页帧列表。内核使用这些列表来保存可用于满足实现的“新鲜”页。但冷热页帧对应的高速缓存状态不同：有些页帧很可能在高速缓存中，因此可以快速访问，故称之为热的；未缓存的页帧与此相对，称之为冷的，page管理的数据结构对象，内部有一个page的列表(list)来管理。每个CPU维护一个page list，避免自旋锁的冲突。这个数组的大小和NR_CPUS(CPU的数量）有关，这个值是编译的时候确定的
-  struct per_cpu_pageset __percpu *pageset;
-  spinlock_t		lock;
-	int                     all_unreclaimable; /* All pages pinned */
+  struct per_cpu_pageset __percpu *pageset;//用于维护percpu上的一系列页面，以减少自旋锁的竞争
+
+	int       all_unreclaimable; /* All pages pinned */
   bool			compact_blockskip_flush;
-  unsigned long		compact_cached_free_pfn;
-	unsigned long		compact_cached_migrate_pfn;
+  unsigned long		compact_cached_free_pfn, compact_cached_migrate_pfn;
 
   /* free areas of different sizes : 页面使用状态的信息，以每个bit标识对应的page是否可以分配，是用于伙伴系统的，每个数组元素指向对应阶也表的数组开头，以下是供页帧回收扫描器(page reclaim scanner)访问的字段，scanner会跟据页帧的活动情况对内存域中使用的页进行编目，如果页帧被频繁访问，则是活动的，相反则是不活动的，在需要换出页帧时，这样的信息是很重要的*/
   struct free_area	free_area[MAX_ORDER];　 //MAX_ORDER : 0 ~~ 10
 	unsigned long		*pageblock_flags; //可以跟踪包含pageblock_nr_pages个页的内存区的属性
-  spinlock_t		lru_lock; //LRU(最近最少使用算法)的自旋锁
+  spinlock_t		lock, lru_lock; //并行访问zone的保护锁；和对LRU链表并行访问时(最近最少使用算法)进行保护的自旋锁
 	struct lruvec		lruvec;　//LRU 链表集合
 
 	unsigned long		pages_scanned;	   /* since last reclaim */
 	unsigned long		flags;		   /* zone flags, see below */
-  atomic_long_t		vm_stat[NR_VM_ZONE_STAT_ITEMS]; //zone 计数
+  atomic_long_t		vm_stat[NR_VM_ZONE_STAT_ITEMS]; //zone 统计计数信息
   unsigned int inactive_ratio;
 
   wait_queue_head_t	* wait_table;  /* 进程等待一个page释放的队列的散列表, 它会被wait_on_page()，unlock_page()函数使用. 用哈希表，而不用一个等待队列的原因，防止进程长期等待资源 */
@@ -520,7 +521,7 @@ struct zone {
   unsigned long		spanned_pages; //zone 中包含的页面数量
 	unsigned long		present_pages; //zone 中实际管理的页面数量. 对一些体系结构来说, 其值和 spanned_pages 相等
 	unsigned long		managed_pages; //zone 中被伙伴系统管理的页面数量
-  const char		*name; //”Normal”
+  const char		*name; //类似：”Normal”
 }____cacheline_internodealigned_in_smp;
 
 typedef struct pglist_data pg_data_t;
@@ -536,9 +537,7 @@ static unsigned long __meminitdata dma_reserve;     //0 always
 //在分配内存时, 如果必须”盗取”不同于预定迁移类型的内存区, 内核在策略上倾向于”盗取”更大的内存区. 由于所有页最初都是可移动的, 那么在内核分配不可移动的内存区时, 则必须”盗取”.实际上, 在启动期间分配可移动内存区的情况较少, 那么分配器有很高的几率分配长度最大的内存区, 并将其从可移动列表转换到不可移动列表. 由于分配的内存区长度是最大的, 因此不会向可移动内存中引入碎片.总而言之, 这种做法避免了启动期间内核分配的内存(经常在系统的整个运行时间都不释放)散布到物理内存各处, 从而使其他类型的内存分配免受碎片的干扰，这也是页可移动性分组框架的最重要的目标之一.
 void __meminit memmap_init_zone(unsigned long size, int nid, unsigned long zone,unsigned long start_pfn, enum memmap_context context)
 
-int __init kswapd_init(void)
-  kswapd_run(nid);   //|--> pgdat->kswapd = kthread_run(kswapd, pgdat, "kswapd%d", nid);
-  hotcpu_notifier(cpu_callback, 0);
+
 enum zone_stat_item {
 	/* First 128 byte cacheline (assuming 64 bit words) */
 	NR_FREE_PAGES,
@@ -584,48 +583,59 @@ enum zone_stat_item {
 如果能知道当前函数运行时层次,就可以方便的打印trace信息了.
 
 ```cpp
+//#define PTRS_PER_PTE		512
+//#define PTRS_PER_PMD		1
+//#define PTRS_PER_PGD		2048
+extern pgd_t swapper_pg_dir[PTRS_PER_PGD];
+struct mm_struct init_mm = {
+	.mm_rb		= RB_ROOT,	.pgd		= swapper_pg_dir,	.mm_users	= ATOMIC_INIT(2),	.mm_count	= ATOMIC_INIT(1),
+	.mmap_sem	= __RWSEM_INITIALIZER(init_mm.mmap_sem),	.page_table_lock =  __SPIN_LOCK_UNLOCKED(init_mm.page_table_lock),
+	.mmlist		= LIST_HEAD_INIT(init_mm.mmlist),	INIT_MM_CONTEXT(init_mm) };
+
 //内存管理主干框架
 struct meminfo meminfo;
 static char __initdata cmd_line[COMMAND_LINE_SIZE];
 
-void __init arm_bootmem_free(unsigned long min, unsigned long max_low, unsigned long max_high)
-	zhol_size[0] = max_low - min; 	zhole_size[0] = max_low - min; //只有一个内存区域
-  |--> free_area_init_node(0, zone_size, min, zhole_size);//void __paginginit free_area_init_node(int nid, unsigned long *zones_size, unsigned long node_start_pfn, unsigned long *zholes_size)
-    pg_data_t *pgdat = NODE_DATA(nid);    pgdat->node_id = nid; pgdat->node_start_pfn = node_start_pfn; //从0开始的
-    calculate_node_totalpages(pgdat, zones_size, zholes_size);//单个ZONE, MAX_NR_ZONES::2 pgdat->node_spanned_pages=pgdat->node_present_pages=15872pages对应62M,
-    |--> alloc_node_mem_map(pgdat);//void alloc_node_mem_map(struct pglist_data *pgdat)
-      start = pgdat->node_start_pfn & ~(MAX_ORDER_NR_PAGES - 1);//从0开始
-			end = ALIGN(pgdat_end_pfn(pgdat), 0x400);//0x400对齐
-      size =  (end - start) * sizeof(struct page);//(0x44000-0x4000)*32 = 0x80000 bytes (512k)
-      |--> map = alloc_bootmem_node_nopanic(pgdat, size);//__alloc_bootmem_node_nopanic(pgdat, x, SMP_CACHE_BYTES, BOOTMEM_LOW_LIMIT),申请0x80000字节，并且0x40字节对齐(cacheline)
-      mem_map = NODE_DATA(0)->node_mem_map = map + (pgdat->node_start_pfn - start);//pgdat:0xc0569724,mem_map：0xc06db000开始保存所有的struct page信息,有效的总15872page;设备映射的1.5M不需要PAGE结构管理.
-    |--> free_area_init_core(pgdat, zones_size, zholes_size);//void __paginginit free_area_init_core(struct pglist_data *pgdat, unsigned long *zones_size, unsigned long *zholes_size)
-			//初始化swapd线程;初始化zone数据结构.
-      int nid = pgdat->node_id; unsigned long zone_start_pfn = pgdat->node_start_pfn;
-      init_waitqueue_head(&pgdat->kswapd_wait);   init_waitqueue_head(&pgdat->pfmemalloc_wait);
-      struct zone *zone = &pgdat->node_zones[0];//我们只有一个zone，而且内存地址中间没有hole
-      zone->managed_pages = zone->present_pages  = zone->spanned_pages = size = zone_spanned_pages_in_node(nid, j, zones_size);//-->return zones_size[0];
-			zone->zone_pgdat = pgdat;
-      zone_pcp_init(zone); //-->zone->pageset = &boot_pageset;
-			set_pageblock_order();
-      setup_usemap(pgdat, zone, zone_start_pfn, size);
-			ret = init_currently_empty_zone(zone, zone_start_pfn,size, MEMMAP_EARLY);
-			|--> memmap_init_zone(size, nid, j, zone_start_pfn);//void __meminit memmap_init_zone(unsigned long size, int nid, unsigned long zone,	unsigned long start_pfn, enum memmap_context context)
-				unsigned long end_pfn = start_pfn + size;	highest_memmap_pfn = end_pfn - 1;
-				for (pfn = start_pfn; pfn < end_pfn; pfn++) //初步初始化每个struct page,设置迁移类型.
-					page = pfn_to_page(pfn);
-					set_page_links(page, zone, nid, pfn);//-->set_page_zone(page, zone);set_page_node(page, node);
-					init_page_count(page);//-->atomic_set(&page->_count, 1);
-					page_mapcount_reset(page);//-->atomic_set(&(page)->_mapcount, -1);
-					SetPageReserved(page);
-					set_pageblock_migratetype(page, MIGRATE_MOVABLE);//-->__set_bit(bitidx + start_bitidx, &zone->pageblock_flags);
-void __init bootmem_init(void)
-	find_limits(&min, &max_low, &max_high); //从memblock对应的meminfo结构中
-	arm_bootmem_init(min, max_low);
-	//arm_memory_present();		sparse_init();
-	arm_bootmem_free(min, max_low, max_high); //max_low:: 0x40000, 页号
-	max_low_pfn = max_low - PHYS_PFN_OFFSET;
-	max_pfn = max_high - PHYS_PFN_OFFSET;
+void __init arm_bootmem_free(unsigned long min, max_low, max_high)//--> free_area_init_node(0, zone_size, min, zhole_size);
+  pg_data_t *pgdat = NODE_DATA(nid); pgdat->node_id = 0; pgdat->node_start_pfn = node_start_pfn; //从0开始的
+  calculate_node_totalpages(pgdat, zones_size, zholes_size);//单个ZONE, MAX_NR_ZONES::2 计算pages个数　pgdat->node_spanned_pages=pgdat->node_present_pages=15872pages对应62M,
+  |--> alloc_node_mem_map(pgdat);//计算所有struct page占用的空间，分配 mem_map = NODE_DATA(0)->node_mem_map;
+    start = pgdat->node_start_pfn & ~(MAX_ORDER_NR_PAGES - 1);//从0开始
+		end = ALIGN(pgdat_end_pfn(pgdat), 0x400);//0x400对齐
+    size =  (end - start) * sizeof(struct page);//(0x44000-0x4000)*32 = 0x80000 bytes (512k)
+    map = alloc_bootmem_node_nopanic(pgdat, size);//__alloc_bootmem_node_nopanic(pgdat, x, SMP_CACHE_BYTES, BOOTMEM_LOW_LIMIT),申请0x80000字节，并且0x40字节对齐(cacheline)
+    mem_map = NODE_DATA(0)->node_mem_map = map + (pgdat->node_start_pfn - start);//pgdat:0xc0569724,mem_map：0xc06db000开始保存所有的struct page信息,有效的总15872page;设备映射的1.5M不需要PAGE结构管理.
+  |--> free_area_init_core(pgdat, zones_size, zholes_size);	//初始化swapd线程;初始化zone数据结构.
+    int nid = pgdat->node_id; unsigned long zone_start_pfn = pgdat->node_start_pfn;
+    init_waitqueue_head(&pgdat->kswapd_wait);   init_waitqueue_head(&pgdat->pfmemalloc_wait);
+    struct zone *zone = &pgdat->node_zones[0];//我们只有一个zone，而且内存地址中间没有hole
+    zone->managed_pages = zone->present_pages = zone->spanned_pages = zone_spanned_pages_in_node(nid, j, zones_size);
+		zone->zone_pgdat = pgdat; zone_pcp_init(zone); //-->zone->pageset = &boot_pageset;
+		set_pageblock_order();
+		|--> setup_usemap(pgdat, zone, zone_start_pfn, size);//计算和分配pageblock_flags迁移类型所需的内存
+			unsigned long usemapsize = usemap_size(zone_start_pfn, zonesize);//计算zone有多少个pageblock
+			zone->pageblock_flags = alloc_bootmem_node_nopanic(pgdat, usemapsize);
+		|--> init_currently_empty_zone(zone, zone_start_pfn, size, MEMMAP_EARLY);
+			struct pglist_data *pgdat = zone->zone_pgdat;
+			|--> zone_wait_table_init(zone, size); //初始化zone 的　wait_table
+				zone->wait_table_hash_nr_entries = ...; zone->wait_table_bits = ...;
+				zone->wait_table = vmalloc(zone->wait_table_hash_nr_entries	* sizeof(wait_queue_head_t));
+				for(i = 0; i < zone->wait_table_hash_nr_entries; ++i)
+					init_waitqueue_head(zone->wait_table + i);
+			pgdat->nr_zones = zone_idx(zone) + 1; zone->zone_start_pfn = zone_start_pfn;
+			|--> zone_init_free_lists(zone); //初始化zone　的　free_area
+				for_each_migratetype_order(order, t)
+					INIT_LIST_HEAD(&zone->free_area[order].free_list[t]);
+					zone->free_area[order].nr_free = 0;
+		|--> memmap_init_zone(size, nid, j, zone_start_pfn); //初步初始化每个struct page,设置迁移类型.
+			unsigned long end_pfn = start_pfn + size;	highest_memmap_pfn = end_pfn - 1;
+			for (pfn = start_pfn; pfn < end_pfn; pfn++)
+				page = pfn_to_page(pfn);
+				set_page_links(page, zone, nid, pfn);//-->set_page_zone(page, zone);set_page_node(page, node);
+				init_page_count(page);//-->atomic_set(&page->_count, 1);
+				page_mapcount_reset(page);//-->atomic_set(&(page)->_mapcount, -1);
+				SetPageReserved(page);
+				set_pageblock_migratetype(page, MIGRATE_MOVABLE);//-->__set_bit(bitidx + start_bitidx, &zone->pageblock_flags);
 
 void __init setup_arch(char **cmdline_p)
 	setup_processor();//获取并且显示cpu 类型和cache等信息:　//CPU: ARMv7 Processor [410fc051] revision 1 (ARMv7), cr=50c53c7d	//CPU: PIPT / VIPT nonaliasing data cache, VIPT aliasing instruction cache
@@ -649,7 +659,7 @@ void __init setup_arch(char **cmdline_p)
 		meminfo.nr_banks = 1; high_memory = __va(arm_lowmem_limit - 1) + 1;　//0x43e00000-->0xc3e00000
 		memblock_set_current_limit(arm_lowmem_limit);
 	arm_memblock_init(&meminfo, mdesc);
-  |||------>>>paging_init(mdesc); //已经解析， above
+  |||------>>>paging_init(mdesc); //已经解析， below
 	|--> request_standard_resources(mdesc);//void request_standard_resources(struct machine_desc *mdesc)
 		kernel_code.start   = virt_to_phys(_text);				kernel_code.end     = virt_to_phys(_etext - 1);
 		kernel_data.start   = virt_to_phys(_sdata);				kernel_data.end     = virt_to_phys(_end - 1);
@@ -662,35 +672,36 @@ void __init setup_arch(char **cmdline_p)
 		item_init(rbget("itemrrtb"), ITEM_SIZE_NORMAL);
 		rtcbit_init();
 
+/* step 1: */
 void __init paging_init(struct machine_desc *mdesc)/* paging_init() sets up the page tables, initialises the zone memory maps, and sets up the zero page, bad page and bad page tables. */
 	memblock_set_current_limit(arm_lowmem_limit); //设置memblock.current_limit = arm_lowmem_limit;
 	build_mem_type_table(); //设置mem_types[]数组
-	|--> prepare_page_table();//void prepare_page_table(void) 初始化之前分配的16k PMD页目录区域
-		for ( addr = 0; addr < PAGE_OFFSET; addr += PMD_SIZE)	pmd_clear(pmd_off_k(addr));
+	|--> prepare_page_table(); //之前分配的内核部分管理有16k的pgd信息, 初始化之, PMD页目录区域为全0
+		for ( addr = 0; addr < MODULES_VADDR; addr += PMD_SIZE)	pmd_clear(pmd_off_k(addr));
+		for ( ; addr < PAGE_OFFSET; addr += PMD_SIZE)	pmd_clear(pmd_off_k(addr));
+		end = memblock.memory.regions[0].base + memblock.memory.regions[0].size;
+		if (end >= arm_lowmem_limit) end = arm_lowmem_limit; //跳过有效内存区域, 继续初始化后续区域页表信息
 		for (addr = __phys_to_virt(arm_lowmem_limit);addr < VMALLOC_START; addr += PMD_SIZE) pmd_clear(pmd_off_k(addr));
-	|--> map_lowmem();//void __init map_lowmem(void)
+	|--> map_lowmem();//为每一段实际内存块建立有效内存的页表映射
 		map.pfn = __phys_to_pfn(start::0x40000000);	map.virtual = __phys_to_virt(start);//pfn::0x40000
-		map.length = end - start;	//0x3e00000
-		map.type = MT_MEMORY;
-		|--> create_mapping(&map, false);//void create_mapping(struct map_desc *md, bool force_pages)
-			addr = md->virtual & PAGE_MASK;	phys = __pfn_to_phys(md->pfn);
+		map.type = MT_MEMORY; map.length = end - start;	//0x3e00000
+		|--> create_mapping(&map, false);
+			type = &mem_types[md->type]; addr = md->virtual & PAGE_MASK;	phys = __pfn_to_phys(md->pfn);
 			length = PAGE_ALIGN(md->length + (md->virtual & ~PAGE_MASK));	end = addr + length;
-			pgd = pgd_offset_k(addr); //计算虚拟地址对应的pgd开始地址, 本系统从0xc0007000开始
-			|--> for(31) alloc_init_pud(pgd, addr, next, phys, type, force_pages); //调用了31次,产生31个pgd目录项,每个对应2M空间 //void __init alloc_init_pud(pgd_t *pgd, unsigned long addr,unsigned long end, unsigned long phys, const struct mem_type *type,bool force_pages)
-				pud_t *pud = pud_offset(pgd, addr); //pud = pgd; 没有pud
-				|--> alloc_init_pmd(pud, addr, next, phys, type, force_pages);//void __init alloc_init_pmd(pud_t *pud, unsigned long addr,unsigned long end, phys_addr_t phys, const struct mem_type *type, bool force_pages)
-					pmd_t *pmd = pmd_offset(pud, addr);  //pmd = pud = pgd; 没有pmd
-						__map_init_section(pmd, addr, next, phys, type); //force_pages为0 //*pmd = __pmd(phys | type->prot_sect);
-						//alloc_init_pte(pmd, addr, next, __phys_to_pfn(phys), type);//force_pages为1
-	|--> dma_contiguous_remap();//void dma_contiguous_remap(void)
+			pgd = pgd_offset_k(addr); //计算虚拟地址对应的pgd开始地址, 本系统从0xc0007000开始 -->pgd_offset(&init_mm, addr)-->((mm)->pgd + pgd_index(addr)), 内核初始化时第一个task对应的mm: init_mm中管理着内核页表的16k的pgd,计算和填充页表映射
+			|--> while(each pages group) alloc_init_pud(pgd, addr, next, phys, type, force_pages);//每个pgd的entry对应了1M空间,64M的物理内存,需要填写64个条目. alloc_init_pud()实际直接对应到一个alloc_init_pte(),为一个pgd的entry分配4k的页表,并填写对应的2M空间的页表映射信息		-->alloc_init_pud()-->alloc_init_pmd()-->alloc_init_pte(pmd, addr, next,	__phys_to_pfn(phys), type)
+				pte_t *start_pte = early_pte_alloc(pmd);//为页表分配4k空间.
+				while(each page) { set_pte_ext(pte, pfn_pte(pfn, __pgprot(type->prot_pte)), 0);pfn++; pte++; addr += PAGE_SIZE; }//512个页的偏移地址填充到页表对应的位置,总占用2k,
+				|--> early_pte_install(pmd, start_pte, type->prot_l1); //__pmd_populate(pmd, __pa(pte), prot);页表地址和属性信息填充pmd目录项, 每条512个页
+					pmdval_t pmdval = (pte + PTE_HWTABLE_OFF) | prot;
+					pmdp[0] = __pmd(pmdval); pmdp[1] = __pmd(pmdval + 256 * sizeof(pte_t));
+					flush_pmd_entry(pmdp);
+	|--> dma_contiguous_remap();//为CMA内存区域建立页表映射
 		map.pfn = __phys_to_pfn(start);		map.virtual = __phys_to_virt(start); //start:0x41800000 end:0x43800000
 		map.length = end - start;		map.type = MT_MEMORY_DMA_READY;
 		|--> iotable_init(&map, 1);//void __init iotable_init(struct map_desc *io_desc, int nr)
 			struct static_vm *svm = early_alloc_aligned(sizeof(*svm) * nr::1, __alignof__(*svm));
-			create_mapping(md, false);//最终会实际分配并初始化每个页表 --- > void __init alloc_init_pte(pmd_t *pmd, unsigned long addr, unsigned long end, unsigned long pfn,const struct mem_type *type)
-					pte_t *start_pte = early_pte_alloc(pmd);//为页表分配4k空间.
-					while() { set_pte_ext(pte, pfn_pte(pfn, __pgprot(type->prot_pte)), 0);pfn++; pte++; addr += PAGE_SIZE; }//512个页的偏移地址填充到页表对应的位置,总占用2k,
-					early_pte_install(pmd, start_pte, type->prot_l1); //页表地址和属性信息填充pmd目录项, 每条512个页
+			create_mapping(md, false); //最终会实际分配并初始化每个页表
 			add_static_vm_early(svm);
 	|--> devicemaps_init(mdesc);//void __init devicemaps_init(struct machine_desc *mdesc)
 		void *vectors = early_alloc(PAGE_SIZE);	early_trap_init(vectors);
@@ -702,6 +713,12 @@ void __init paging_init(struct machine_desc *mdesc)/* paging_init() sets up the 
 	top_pmd = pmd_off_k(0xffff0000);
 	zero_page = early_alloc(PAGE_SIZE);/* allocate the zero page. */
 	|--> bootmem_init();
+		find_limits(&min, &max_low, &max_high); //从memblock对应的meminfo结构中，获取物理内存开始和结束pfn，按照一块62M理解：0x40000-0x43e00
+		arm_bootmem_init(min, max_low);
+		//arm_memory_present();		sparse_init();
+		arm_bootmem_free(min, max_low, max_high); //max_low:: 0x40000, 页号
+		max_low_pfn = max_low - PHYS_PFN_OFFSET;
+		max_pfn = max_high - PHYS_PFN_OFFSET;
 	empty_zero_page = virt_to_page(zero_page);
 	__flush_dcache_page(NULL, empty_zero_page); //skip this func
 
@@ -732,7 +749,7 @@ asmlinkage void __init start_kernel(void)
 				for(all page) __free_pages_bootmem(pfn_to_page(start), order);//空闲的page转交给zone管理.
 		kmem_cache_init();//释放bootmem到伙伴系统,slab分配器初始化,之后内存分配需要使用slab和buddy的api
 		percpu_init_late();		vmalloc_init(); //暂时不看
-	sched_init(); //    初始化调度器数据结构，并创建运行队列
+	sched_init(); //初始化调度器数据结构，并创建运行队列
 	preempt_disable(); 	if (WARN(!irqs_disabled(), "Interrupts were enabled *very* early, fixing it\n")) local_irq_disable();// 在启动的初期关闭抢占和中断。早期启动时的调度是极为脆弱的，直到cpu_idle()的首次运行
 	idr_init_cache(); //为IDR机制分配缓存，主要是为struct idr_layer结构体分配空间
 	perf_event_init(); //    CPU性能监视机制初始化,此机制包括CPU同一时间执行指令数，cache miss数，分支预测失败次数等性能参数
@@ -860,6 +877,19 @@ static inline void set_page_node(struct page *page, unsigned long node)
 `follow_page()`函数可以根据虚拟地址获取物理页，示例代码详见mm/memory.c
 
 ```cpp
+long get_user_pages(struct task_struct *tsk, mm, start, nr_pages, write, force, pages, vmas)//-->__get_user_pages()
+	while (nr_pages)
+		vma = find_extend_vma(mm, start);
+		while (!(page = follow_page_mask(vma, start, foll_flags, &page_mask))) //可能对应的pte为空, 对应page还未加载
+			handle_mm_fault(mm, vma, start, fault_flags); //缺页处理
+		flush_anon_page(vma, page, start); flush
+		_dcache_page(page);
+
+struct page *follow_page(struct vm_area_struct *vma, address, foll_flags)//-->follow_page_mask()
+	pgd = pgd_offset(mm, address); ptep = pte_offset_map_lock(mm, pgd, address, &ptl); pte = *ptep;
+	|--> page = vm_normal_page(vma, address, pte);
+		pfn = pte_pfn(pte); return pfn_to_page(pfn);
+
 //启动进程的过程中需要为进程分配内存，sys_execve() --> SYSCALL_DEFINE3(execve...) --> do_execve() --> do_execve_common --> bprm_mm_init()
 int bprm_mm_init(struct linux_binprm *bprm)
 	struct mm_struct *mm = bprm->mm = mm_alloc();
@@ -925,7 +955,7 @@ static inline pmd_t * pmd_offset(pud_t * pud, unsigned long address)
 //统一的内存分配函数入口
 struct page *__alloc_pages(gfp_t gfp_mask, unsigned int order, struct zonelist *zonelist)
 //根据虚拟地址获取物理页
-struct page *follow_page_mask(struct vm_area_struct *vma,　unsigned long address, unsigned int flags, unsigned int *page_mask)
+	struct page *follow_page_mask(struct vm_area_struct *vma,　unsigned long address, unsigned int flags, unsigned int *page_mask)
 ```
 
 **创建新进程内存映射过程**<br>
@@ -937,26 +967,76 @@ struct page *follow_page_mask(struct vm_area_struct *vma,　unsigned long addres
 
 有种场景比较重要,如果当前迁移类型中找不到刚好合适的,而必须切分上一级的area,这时候,寻找fallbacks中,还是切分? 有时候,分的区域太多,也不好,导致更多的外部碎片.
 
-CMA 好像是
-
 ```cpp
-struct page *get_page_from_freelist(gfp_t gfp_mask, nodemask_t *nodemask, unsigned int order,	struct zonelist *zonelist, int high_zoneidx, int alloc_flags, struct zone *preferred_zone, int migratetype)
-
 bool __zone_watermark_ok(struct zone *z, int order, unsigned long mark, int classzone_idx, int alloc_flags, long free_pages)
+//直接内存回收执行路径是：
+　　__alloc_pages_slowpath() -> __alloc_pages_direct_reclaim() -> __perform_reclaim() -> try_to_free_pages() -> do_try_to_free_pages() -> shrink_zones() -> shrink_zone()
 
+void expand(struct zone *zone, struct page *page,int low, int high, struct free_area *area,int migratetype)
+	unsigned long size = 1 << high; //order为high的页块对应的页框数
+	while (high > low)//申请的order为low,实际分配的块对应的order为high大于low则将大块拆分，并且将拆分后的伙伴块添加到下一级order的块链表中去
+		area--;　//area减1得到下一级order对应的area
+		high--;	size >>= 1;	//high减1表明进行了一次拆分
+		//通过size来定位拆分后的伙伴块的起始页框描述符，并将其作为第一个块添加到下一级order的块链表中
+		list_add(&page[size].lru, &area->free_list[migratetype]);	area->nr_free++;　
+		|--> set_page_order(&page[size], high);
+			set_page_private(page, order);
+			__SetPageBuddy(page); //-->atomic_set(&page->_mapcount, PAGE_BUDDY_MAPCOUNT_VALUE);
+
+//alloc_pages()-->alloc_pages_node()-->__alloc_pages()-->__alloc_pages_nodemask()
 struct page *__alloc_pages_nodemask(gfp_t gfp_mask, unsigned int order, struct zonelist *zonelist, nodemask_t *nodemask)
 	enum zone_type high_zoneidx = gfp_zone(gfp_mask);//根据gfp_mask确定分配页所处的管理区
 	int migratetype = allocflags_to_migratetype(gfp_mask);//根据gfp_mask得到迁移类分配页的型
 	int alloc_flags = ALLOC_WMARK_LOW|ALLOC_CPUSET;
 	if (allocflags_to_migratetype(gfp_mask) == MIGRATE_MOVABLE)		alloc_flags |= ALLOC_CMA;
-  page = get_page_from_freelist(gfp_mask|__GFP_HARDWALL, nodemask, order,	zonelist, high_zoneidx, alloc_flags,	preferred_zone, migratetype);  //从zonelist中找到zone_idx与high_zoneidx相同的管理区，也就是之前认定的管理区
+  |--> page = get_page_from_freelist(..., migratetype);  //从zonelist中找到zone_idx与high_zoneidx相同的管理区，也就是之前认定的管理区
+  	  for_each_zone_zonelist_nodemask(zone, z, zonelist, high_zoneidx, nodemask)
+				if (!zone_watermark_ok(zone, order, mark, classzone_idx, alloc_flags) continue;//空闲空间不够
+				|--> page = buffered_rmqueue(preferred_zone, zone, order, gfp_mask, migratetype);
+					if (likely(order == 0)) ...;//如果是单页，从percpu链表中取;如果链表空，调用rmqueue_bulk()填充
+					else
+						|--> page = __rmqueue(zone, order, migratetype);
+							|--> page = __rmqueue_smallest(zone, order, migratetype);
+  							for (current_order = order; current_order < MAX_ORDER; ++current_order)
+									area = &(zone->free_area[current_order]);
+									if (list_empty(&area->free_list[migratetype])) continue;
+									page = list_entry(area->free_list[migratetype].next, struct page, lru);
+									list_del(&page->lru); rmv_page_order(page); area->nr_free--;
+									expand(zone, page, order, current_order, area, migratetype);//分配碎片重新整理
+							if (unlikely(!page) && migratetype != MIGRATE_RESERVE)
+								|--> page = __rmqueue_fallback(zone, order, migratetype);
+									for (current_order = MAX_ORDER-1; current_order >= order;	--current_order) for (i = 0;; i++)
+										migratetype = fallbacks[start_migratetype][i]; area = &(zone->free_area[current_order]);
+										if (list_empty(&area->free_list[migratetype])) continue;
+										if (migratetype == MIGRATE_CMA) 	return __rmqueue_smallest(zone, order, migratetype);
+										page = list_entry(area->free_list[migratetype].next, struct page, lru);
+										area->nr_free--;
+										pages = move_freepages_block(zone, page, start_migratetype);
+										set_pageblock_migratetype(page,	start_migratetype);
+										list_del(&page->lru); rmv_page_order(page);
+										expand(zone, page, order, current_order, area, is_migrate_cma(migratetype)? migratetype : start_migratetype);
+				if (page) return page;
 	if (unlikely(!page))
 		page = __alloc_pages_slowpath(gfp_mask, order,zonelist, high_zoneidx, nodemask,preferred_zone, migratetype);//第一次分配失败的话则会用通过一条低速路径来进行第二次分配，包括唤醒页换出守护进程等等
 
 void __free_pages(struct page *page, unsigned int order)
 
-struct page *buffered_rmqueue(struct zone *preferred_zone, struct zone *zone, int order, gfp_t gfp_flags, int migratetype)
-
+void *vmalloc(unsigned long size)//->__vmalloc_node_flags()->__vmalloc_node()->__vmalloc_node_range()
+	|--> area = __get_vm_area_node(size,1,VM_ALLOC|VM_UNLIST,VMALLOC_START,VMALLOC_END,-1, GFP_KERNEL|__GFP_HIGHMEM, NULL);
+		struct vm_struct *vm_area = kzalloc_node(sizeof(*area), gfp_mask & GFP_RECLAIM_MASK, node);
+		//在内核vmalloc地址空间范围内找到一个可用的vm范围，返回信息保存扎起struct vmap_area中
+		struct vmap_area *va = alloc_vmap_area(size, align, start, end, node, gfp_mask);
+		|--> insert_vmalloc_vm(vm_area, va, flags, caller); //把vm_area和va联系在一起
+			|--> setup_vmalloc_vm(vm, va, flags, caller); //初始化vm
+  			vm->flags = flags; vm->addr = (void *)va->va_start; vm->size = va->va_end - va->va_start; vm->caller = caller;
+				va->vm = vm; va->flags |= VM_VM_AREA;
+			|--> clear_vm_unlist(vm);
+  			smp_wmb();  vm->flags &= ~VM_UNLIST;
+	|--> addr = __vmalloc_area_node(area, gfp_mask, prot, node, caller);
+		for (i = 0; i < area->nr_pages; i++)//分配足够的pages
+			page = alloc_pages_node(node, tmp_mask, order);　area->pages[i] = page;
+		map_vm_area(area, prot, &pages);//已经得到area和足够的pages,建立页表
+	return addr;
 ```
 
 ## 2.7 CMA定义
@@ -1062,7 +1142,6 @@ void __init kmem_cache_init(void)
 	kmem_cache_node = bootstrap(&boot_kmem_cache_node);
 
 	|--> create_kmalloc_caches(0);//void __init create_kmalloc_caches(unsigned long flags)
-		int i
 		for (i = 8; i < KMALLOC_MIN_SIZE; i += 8) {
 			int elem = size_index_elem(i);
 			if (elem >= ARRAY_SIZE(size_index))	break;
@@ -1160,16 +1239,18 @@ static int bootmem_debug;
 
 //start_kernel-->setup_arch-->paging_init-->bootmem_init
 void arm_bootmem_init(unsigned long start_pfn,unsigned long end_pfn)
-//申请一个bitmap并且0初始化，然后把memblock管理的页面空闲和占用信息映射到这个bitmap中
+//申请一个bitmap并且0初始化，然后把memblock管理的页面空闲和占用信息同步映射到这个bitmap中
 	boot_pages = bootmem_bootmap_pages(end_pfn - start_pfn);//计算mapping需要的管理页面的个数,每个page对应其中一个bit.
 	bitmap = memblock_alloc_base(boot_pages << PAGE_SHIFT, L1_CACHE_BYTES,__pfn_to_phys(end_pfn));//分配管理内存,大概0x1000
-	|--> init_bootmem_node(pgdat, __phys_to_pfn(bitmap), start_pfn, end_pfn);//--->init_bootmem_core(pgdat->bdata, freepfn, startpfn, endpfn);		//初始化bootmem,然后将memblock当前mem占用情况转换到bootmem机制::->//unsigned long __init init_bootmem_core(bootmem_data_t *bdata,unsigned long mapstart, unsigned long start, unsigned long end)
+	|--> init_bootmem_node(pgdat, __phys_to_pfn(bitmap), start_pfn, end_pfn);//--->init_bootmem_core()
 		bdata->node_bootmem_map = phys_to_virt(PFN_PHYS(mapstart));
 		bdata->node_min_pfn = start;	bdata->node_low_pfn = end;
 		link_bootmem(bdata);//void  link_bootmem(bootmem_data_t *bdata) //-->list_add_tail(&bdata->list, &bdata_list);
 		mapsize = bootmap_bytes(end - start); 		memset(bdata->node_bootmem_map, 0xff, mapsize);
-	for_each_memblock(memory, reg)	free_bootmem(__pfn_to_phys(start), (end - start) << PAGE_SHIFT);
-	for_each_memblock(reserved, reg) reserve_bootmem(__pfn_to_phys(start),(end - start) << PAGE_SHIFT, BOOTMEM_DEFAULT);
+	for_each_memblock(memory, reg)
+		free_bootmem(__pfn_to_phys(start), (end - start) << PAGE_SHIFT);//mark_bootmem(start, end, 0, 0);
+	for_each_memblock(reserved, reg)
+		reserve_bootmem(__pfn_to_phys(start),(end - start) << PAGE_SHIFT, BOOTMEM_DEFAULT);//mark_bootmem(start, end, 1, flags);
 ```
 
 ### 3.2 memblock
@@ -1301,6 +1382,19 @@ vmalloc区，为896M-896M+128M，这部分区域用于映射高端内存，有�
 ### 4.2
 
 ## 5 dma直接相关
+
+kmalloc的实现是基于slab机制的
+```cpp
+void *kmalloc(size_t size, gfp_t flags)
+	if (__builtin_constant_p(size)) //如果申请的size是编译时候已经确定大小的，可以优化
+		if (size > KMALLOC_MAX_CACHE_SIZE)
+			|--> return kmalloc_large(size, flags);
+				unsigned int order = get_order(size);	return kmalloc_order_trace(size, flags, order);
+		if (!(flags & GFP_DMA))
+			int index = kmalloc_index(size);
+			return kmem_cache_alloc_trace(kmalloc_caches[index], flags, size);
+	return __kmalloc(size, flags);
+```
 ### 5.1 SMP内存访问一致性
 fr操作，spin_lock_t变量在CMA内存中分配的时候，出现crash问题，这是因为spin_lock_t内存必须要开启cache
 	https://blog.csdn.net/juS3Ve/article/details/81784688?utm_source=blogxgwz10
@@ -1380,7 +1474,7 @@ echo 3 > /proc/sys/vm/drop_caches;cat /proc/meminfo | grep -e "memfree" -e "Cach
 ```
 
 **反向映射**<br>
- 在进行页面回收的时候，Linux 2.6 在前边介绍的 shrink_page_list() 函数中调用 try_to_unmap() 函数去更新所有引用了回收页面的页表项. 函 数 try_to_unmap() 分别调用了两个函数 try_to_unmap_anon() 和 try_to_unmap_file()，其目的都是检查并确定都有哪些页表项引用了同一个物理页面，但是，由于匿名页面和文件映射页面分别采用了不同的 数据结构，所以二者采用了不同的方法。函数 try_to_unmap_anon() 用于匿名页面，该函数扫描相应的 anon_vma 表中包含的所有内存区域，并对这些内存区域分别调用 try_to_unmap_one() 函数。函数 try_to_unmap_file() 用于文件映射页面，该函数会在优先级搜索树中进行搜索，并为每一个搜索到的内存区域调用 try_to_unmap_one() 函数。两条代码路径最终汇合到 try_to_unmap_one() 函数中，更新引用特定物理页面的所有页表项的操作都是在这个函数中实现的。
+ 在进行页面回收的时候，Linux在shrink_page_list()函数中调用 try_to_unmap() 函数去更新所有引用了回收页面的页表项
 
 ### 6.2 内存详细查询： meminfo
 	参考文档： http://linuxperf.com/?cat=7
@@ -1458,3 +1552,634 @@ VmallocChunk:     928764 kB
 	// /proc/<pid>/smaps 包含了进程的每一个内存映射的统计值，详见proc(5)的手册页。Pss(Proportional Set Size)把共享内存的Rss进行了平均分摊，比如某一块100MB的内存被10个进程共享，那么每个进程就摊到10MB。这样，累加Pss就不会导致共享内存被重复计算了。
 	// 有人提出【MemTotal = MemFree + buff/cache + slab + 全部进程占用的内存】。这是不对的，原因之一是：进程占用的内存包含了一部分page cache，换句话说，就是进程占用的内存与page cache发生了重叠。比如进程的mmap文件映射同时也统计在page cache中。
 ```
+
+## 7 逆向映射
+一个vma包含的所有的page应该是一个属性的，不可能出现部分是文件映射，部分是匿名映射，部分是KSM的情况．所以，所有的这些page，通过`page->mapping`指向同一个`vma->anon_vma`
+
+### 7.1 逆向映射
+
+逆向映射用于建立物理内存页和使用该页的进程的对应页表项之间的联系，在换出页时以便更新所有涉及的进程。得到物理页基址后，根据pfn_to_page可以将页框转换为page实例，page实例中的mapping成员，在映射匿名页面的时候该成员指向一个anon_vma结构，在映射文件页面的时候指向inode节点的address-space
+
+一个物理页面可以同时被多个进程的虚拟地址内存映射，但一个虚拟页面同时只能有一个物理页面与之映射。不同虚拟页面同时映射到同一物理页面是因为子进程克隆父进程VMA，和KSM机制的存在。逆向映射实现的基础是通过struct anon_vma（简称AV）、struct anon_vma_chain(简称AVC)和sturct vm_area_struct(简称VMA)建立了联系，通过物理页面反向查找到VMA
+
+说一下匿名映射情况下如何通过page得到对应的pte：匿名映射的情况下page->mapping指向anon_vma结构，AVC通过红黑树结点链接到AV中，而AVC又指向VMA，遍历anon_vma->rb_root红黑树中的AVC，从AVC可以得到相应的VMA，因此通过page指向的anon_vma结构可以得到与该进程相关的所有vma。前面说到，由于子进程复制父进程的vma，因此多个不同子进程中的虚拟页面会同时映射到同一个物理页面，另外多个不相干进程虚拟页面也可以通过KSM机制映射到同一个物理页面。这两种情况下通过逆向映射解除对一个页面的映射的实现是不一样的。函数page_referenced会先判断页面的类型，如果是KSM页面走page_referenced_ksm。如果是匿名映射页，走page_referenced_anon，如果是文件映射页，走page_referenced_file（对于文件主要就是根据page->mapping->i_mmap得到相关的vma），page_referenced_ksm和page_referenced_anon的区别在于获取page对应的虚拟地址上存在差异。
+
+对于page_referenced_anon，对应到前面说的多个不同子进程中的虚拟页面同时映射到同一个物理页面的情况，page->index为page对应的虚拟页框在对应vma中的偏移，因为子进程复制父进程的vma，因此他们对应的vma结构都是一样的，因此page->index在不同子进程的vma中的偏移都是一致的，故对于每个关联的vma，都通过vma_address(page, vma)便可以获取page在当前vma对应的虚拟地址，且通过vma可以得到mm,进一步得到pgd。通过pgd和虚拟地址，可以继续遍历页表得到pte，然后解除映射。
+
+共享内存方式的页如何通过逆向映射解除映射：应该是通过文件的方式，内核实现的shm共享内存会分配一个文件标识符，而mmap实现的共享内存要么是在父子进程之间，要么就是文件映射
+
+```cpp
+
+page_mkclean()
+	clear_page_dirty_for_io()
+		migrate_page_copy()　... ---- migrate_pages()
+		writeout()--fallback_migrate_page()--move_to_new_page()--__unmap_and_move()--unmap_and_move()--migrate_pages() //迁移功能
+		write_cache_pages()　//文件缓存写入功能
+			generic_writepages()
+			mpage_writepages()
+		write_one_page() //not used
+
+//try_to_unmap()函数反向调用树
+try_to_unmap()
+  __unmap_and_move() //migragte.c
+    unmap_and_move()
+      migrate_pages() //main switch 1 -- start: 页面迁移功能
+  shrink_page_list() //vmscan.c
+    reclaim_clean_pages_from_list()
+    shrink_inactive_list()
+      shrink_list()
+        shrink_lruvec()
+          shrink_zone()
+            shrink_zones()
+              do_try_to_free_pages()
+                try_to_free_pages()
+                  free_more_memory()//main switch 2 -- end: slowpath alloc pages所需
+                  __perform_reclaim()--__alloc_pages_direct_reclaim()--__alloc_pages_slowpath()--__alloc_pages_nodemask()
+                shrink_all_memory()--hibernate_preallocate_memory()--hibernation_snapshot()//不需要考虑这个分支
+            balance_pgdat()
+              kswapd()
+  //以下分支不考虑
+  unmap_and_move_huge_page()--migrate_huge_page() //不考虑huge情况
+  hwpoison_user_mappings()
+
+extern atomic_long_t vm_stat[NR_VM_ZONE_STAT_ITEMS];
+
+struct vm_area_struct {
+	unsigned long vm_start;		/* Our start address within vm_mm. */
+	unsigned long vm_end;		/* The first byte after our end address within vm_mm. */
+
+	struct vm_area_struct *vm_next, *vm_prev;
+	struct rb_node vm_rb;
+	unsigned long rb_subtree_gap;
+
+	struct mm_struct *vm_mm;	/* The address space we belong to. */
+	pgprot_t vm_page_prot;		/* Access permissions of this VMA. */
+	unsigned long vm_flags;		/* Flags, see mm.h. */
+
+	union {
+		struct { struct rb_node rb; unsigned long rb_subtree_last;} linear;
+		struct list_head nonlinear;  const char __user *anon_name;
+	} shared;
+
+	struct list_head anon_vma_chain; /* Serialized by mmap_sem & page_table_lock */
+	struct anon_vma *anon_vma;	/* Serialized by page_table_lock */
+	const struct vm_operations_struct *vm_ops;
+	unsigned long vm_pgoff;		/* Offset (within vm_file) in PAGE_SIZE units, *not* PAGE_CACHE_SIZE */
+	struct file * vm_file;		/* File we map to (can be NULL). */
+	void * vm_private_data;		/* was vm_pte (shared mem) */
+};
+struct anon_vma {
+	struct anon_vma *root;		/* Root of this anon_vma tree */
+	struct rw_semaphore rwsem;	/* W: modification, R: walking the list */
+	atomic_t refcount;　//引用计数
+	struct rb_root rb_root;	//这个树管理当前page映射的所有chain，遍历可以最终得到在不同进程地址空间中的pte映射信息
+};
+struct anon_vma_chain {
+	struct vm_area_struct *vma;//指向父进程或者子进程的vma
+	struct anon_vma *anon_vma; //指向父进程或者子进程的anon_vma
+	struct list_head same_vma; //通过这个节点添加到struct vm_area_struct.anon_vma_chain链表中
+	struct rb_node rb;	//通过这个节点添加到struct anon_vma.rb_root的树上，一个anon_vma通过多个chain映射多个vma
+	unsigned long rb_subtree_last;
+};
+
+//暂时理解应该是文件映射对应的处理,匿名映射的对立面
+int __do_fault(struct mm_struct *mm, struct vm_area_struct *vma, address, pmd_t *pmd, pgoff, flags, pte_t orig_pte)
+  vmf.virtual_address = (void __user *)(address & PAGE_MASK); vmf.pgoff = pgoff; vmf.flags = flags;	vmf.page = NULL;
+  |--> vma->vm_ops->fault(vma, &vmf);//对于文件映射 generic_file_vm_ops.filemap_fault() 找到Page,并从文件中预读数据
+    page = find_get_page(mapping, offset); do_async_mmap_readahead(vma, ra, file, page, offset); //尝试预读部分文件数据
+    vmf->page = page;
+  page = vmf.page;//得到回调处理得到的page
+  if !(flags & FAULT_FLAG_WRITE) //do read fault, 如果是只读的页, 这里返回就好
+    entry = mk_pte(page, vma->vm_page_prot); set_pte_at(mm, address, page_table, entry); //填写页表项即可
+    page_add_file_rmap(page); //-->__inc_zone_page_state(page, NR_FILE_MAPPED);-->__inc_zone_state(page_zone(page), item);
+    return 0;
+  if (vma->vm_flags & VM_SHARED)　//do shared fault<, 如果是共享文件映射需要同步等待写入,私有文件映射则不需要同步
+    |--> vma->vm_ops->page_mkwrite(vma, &vmf); page_mkwrite = 1; //-->filemap_page_mkwrite()
+			struct page *page = vmf->page; struct inode *inode = file_inode(vma->vm_file);
+			sb_start_pagefault(inode->i_sb); file_update_time(vma->vm_file);
+			set_page_dirty(page); wait_for_stable_page(page); //触发page回写并同步等待回写完成
+	else
+		copy_user_highpage(page, vmf.page, address, vma); __SetPageUptodate(page);
+  page_table = pte_offset_map_lock(mm, pmd, address, &ptl);
+	entry = maybe_mkwrite(pte_mkdirty(entry), vma); inc_mm_counter_fast(mm, MM_FILEPAGES); page_add_file_rmap(page);
+  set_pte_at(mm, address, page_table, entry);
+  set_page_dirty(page); balance_dirty_pages_ratelimited(page->mapping);
+
+int do_anonymous_page(struct mm_struct *mm, vma, address, pte_t *page_table, pmd_t *pmd, flags)
+	pte_unmap(page_table);
+  |--> anon_vma_prepare(vma); //为进程地址空间准备struct anon_vma数据结构和struct anon_vma_chain链表
+    struct anon_vma *anon_vma = vma->anon_vma; if (anon_vma) return 0;//如果已经分配，直接返回
+    struct anon_vma_chain *avc = anon_vma_chain_alloc(GFP_KERNEL); //-->kmem_cache_alloc(anon_vma_chain_cachep, gfp);
+    anon_vma = find_mergeable_anon_vma(vma);　//找到一个可用的anon_vma
+		|--> if (!anon_vma)　anon_vma = anon_vma_alloc();
+			anon_vma = kmem_cache_alloc(anon_vma_cachep, GFP_KERNEL);
+			atomic_set(&anon_vma->refcount, 1); anon_vma->root = anon_vma;
+		vma->anon_vma = anon_vma;
+    |--> anon_vma_chain_link(vma, avc, anon_vma);
+      avc->vma = vma; //建立struct anon_vma_chain和struct vm_area_struct关联
+      avc->anon_vma = anon_vma; //建立struct anon_vma_chain和struct anon_vma关联
+      list_add(&avc->same_vma, &vma->anon_vma_chain);//将AVC添加到vm_area_struct->anon_vma_chain链表中
+      anon_vma_interval_tree_insert(avc, &anon_vma->rb_root);//将AVC添加到anon_vma->rb_root红黑树中
+  page = alloc_zeroed_user_highpage_movable(vma, address);//最终实际调用__alloc_pages_nodemask()函数分配page
+  __SetPageUptodate(page);
+  entry = mk_pte(page, vma->vm_page_prot); //开始构造页表项内容
+  if (vma->vm_flags & VM_WRITE)　entry = pte_mkwrite(pte_mkdirty(entry));　//如果page可写
+  page_table = pte_offset_map_lock(mm, pmd, address, &ptl); //获取pgd页目录中条目的地址
+  page_add_new_anon_rmap(page, vma, address);
+  set_pte_at(mm, address, page_table, entry); //填充pte，然后更新mmu cache
+
+int do_page_fault(unsigned long addr, unsigned int fsr, struct pt_regs *regs)
+	|--> __do_page_fault(current->mm, addr, fsr, flags, tsk);
+		|--> handle_mm_fault(mm, find_vma(mm, addr), addr & PAGE_MASK, flags);//find_vma()函数查找是否存在满足要求的VMA
+  		__set_current_state(TASK_RUNNING); count_vm_event(PGFAULT);
+  		pmd = pud = pgd = pgd_offset(mm, address); pte = pte_offset_map(pmd, address);
+			|--> handle_pte_fault(mm, vma, address, pte, pmd, flags);
+				pte_unmap(page_table);
+				__do_fault(mm, vma, address, pmd, pgoff, flags, orig_pte);//called by do_nonlinear_fault() or do_linear_fault()
+        do_anonymous_page(mm, vma, address, pte, pmd, flags); //匿名page
+	|--> __do_user_fault(tsk, addr, fsr, sig, code, regs);//通知用户进程
+		struct siginfo si; tsk->thread.address = addr; tsk->thread.error_code = fsr;	tsk->thread.trap_no = 14;
+		si.si_signo = sig; si.si_errno = 0;	si.si_code = code;	si.si_addr = (void __user *)addr;
+		force_sig_info(sig, &si, tsk);
+
+int page_mkclean(struct page *page)
+	if (!page_mapped(page)) return;
+	|--> page_mkclean_file(page_mapping(page), page);
+		pgoff_t pgoff = page->index << (PAGE_CACHE_SHIFT - PAGE_SHIFT);
+		vma_interval_tree_foreach(vma, &mapping->i_mmap, pgoff, pgoff)
+			if (vma->vm_flags & VM_SHARED)
+				unsigned long address = vma_address(page, vma);
+				|--> ret += page_mkclean_one(page, vma, address);
+					struct mm_struct *mm = vma->vm_mm; pte_t entry;
+					pte_t *pte = page_check_address(page, mm, address, &ptl, 1);
+					flush_cache_page(vma, address, pte_pfn(*pte)); entry = ptep_clear_flush(vma, address, pte);
+					entry = pte_wrprotect(entry);	entry = pte_mkclean(entry);
+					set_pte_at(mm, address, pte, entry);
+
+int try_to_unmap(struct page *page, enum ttu_flags flags)
+  if (unlikely(PageKsm(page))) try_to_unmap_ksm(page, flags);
+	|--> else if (PageAnon(page)) try_to_unmap_anon(page, flags);
+		anon_vma = page_lock_anon_vma_read(page);	pgoff = page->index << (PAGE_CACHE_SHIFT - PAGE_SHIFT);
+		anon_vma_interval_tree_foreach(avc, &anon_vma->rb_root, pgoff, pgoff)
+			vma = avc->vma; address = vma_address(page, vma);
+			|--> try_to_unmap_one(page, vma, address, flags); //清除对应vma的对应的页表项
+				pte_t *pte = page_check_address(page, mm, address, &ptl, 0);
+				flush_cache_page(vma, address, page_to_pfn(page));
+				pteval = ptep_clear_flush(vma, address, pte);
+				if (pte_dirty(pteval))	set_page_dirty(page);
+				set_pte_at(mm, address, pte, new_pte_entry); //new_pte_entry是file/anon类型相关的，这里不描述
+				page_remove_rmap(page); page_cache_release(page);
+	|--> else try_to_unmap_file(page, flags);
+		mapping = page->mapping; pgoff = page->index << (PAGE_CACHE_SHIFT - PAGE_SHIFT);
+		vma_interval_tree_foreach(vma, &mapping->i_mmap, pgoff, pgoff)
+			unsigned long address = vma_address(page, vma);
+			try_to_unmap_one(page, vma, address, flags);
+```
+
+### 7.2 迁移
+```cpp
+int migrate_page(struct address_space *mapping, struct page *newpage, struct page *page, enum migrate_mode mode)
+	|--> migrate_page_move_mapping(mapping, newpage, page, NULL, mode);
+		if (!mapping) return;
+		pslot = radix_tree_lookup_slot(&mapping->page_tree,	page_index(page));//获取旧page在rbt中位置
+		radix_tree_replace_slot(pslot, newpage); //addr没有变化，所以直接替换就可以了
+		__dec_zone_page_state(page, NR_FILE_PAGES); __inc_zone_page_state(newpage, NR_FILE_PAGES);　//更新两个page的zone的页统计信息，如果两个page在同一个zone,实际没有变化
+	|--> migrate_page_copy(newpage, page);
+		copy_highpage(newpage, page); //-->copy_page(vto, vfrom);
+		...; //根据page的状态，更新newpage的状态
+		if (PageDirty(page)) clear_page_dirty_for_io(page);
+
+//比migrate_page()函数增加了相关buf_head的处理，一般用于文件系统映射文件的迁移，好像也包括shmem和swap的缓存
+int buffer_migrate_page(struct address_space *mapping, struct page *newpage, struct page *page, enum migrate_mode mode)
+	if (!page_has_buffers(page)) return migrate_page(mapping, newpage, page, mode);//不带buffer，就调用普通的migrate函数
+	migrate_page_move_mapping(mapping, newpage, page, head, mode);
+	do { set_bh_page(bh, newpage, bh_offset(bh));	bh = bh->b_this_page;	} while (bh != head); //fill bufhead with newpage
+	migrate_page_copy(newpage, page);
+	do { unlock_buffer(bh);	put_bh(bh);	bh = bh->b_this_page; } while (bh != head);//释放bufhead
+
+int remove_migration_pte(struct page *new, struct vm_area_struct *vma, unsigned long addr, void *old)
+	pmd = mm_find_pmd(mm, addr); ptep = pte_offset_map(pmd, addr); ptl = pte_lockptr(mm, pmd);
+	pte = *ptep; entry = pte_to_swp_entry(pte);
+	set_pte_at(mm, addr, ptep, pte); ...; //update pte_entry
+	page_add_anon_rmap(new, vma, addr); page_add_file_rmap(new); //这两个二选一
+//多个页面的迁移
+int migrate_pages(struct list_head *from, new_page_t get_new_page, unsigned long private, enum migrate_mode mode, int reason)
+	list_for_each_entry_safe(page, page2, from, lru)
+		struct page *newpage = get_new_page(page, private, &result);
+		//remove all ptes and migrate the page to the newly allocated page in newpage.
+		|--> unmap_and_move(get_new_page, private, page, pass > 2, mode);//__unmap_and_move(page, newpage, force, mode);
+			if (!trylock_page(page)) lock_page(page);//尝试枷锁
+			if (PageWriteback(page)) wait_on_page_writeback(page); //等待回写
+			try_to_unmap(page, TTU_MIGRATION|TTU_IGNORE_MLOCK|TTU_IGNORE_ACCESS);　//移除page所有映射的ptes
+			|--> if (!page_mapped(page)) move_to_new_page(newpage, page, remap_swapcache, mode);
+  			newpage->index = page->index; newpage->mapping = page->mapping; mapping = page_mapping(page);
+				if (!mapping) migrate_page(mapping, newpage, page, mode);//匿名page或者slab page情况，无mapping
+				else if (mapping->a_ops->migratepage) mapping->a_ops->migratepage(mapping, newpage, page, mode);//-->buffer_migrate_page()
+				|--> else fallback_migrate_page(mapping, newpage, page, mode);//fs没有提供迁移回调函数，那么就强制回写脏页，非脏页就调用migrate_page()
+					if (PageDirty(page)) return writeout(mapping, page);
+					migrate_page(mapping, newpage, page, mode);
+				|--> remove_migration_ptes(page, newpage);//-->rmap_walk(new, remove_migration_pte, old);
+					|--> rmap_walk_anon(page, rmap_one, arg);
+  					struct anon_vma *anon_vma = page_anon_vma(page);
+						anon_vma_interval_tree_foreach(avc, &anon_vma->rb_root, pgoff, pgoff)
+							address = vma_address(page, vma); rmap_one(page, vma, address, arg);
+					|--> rmap_walk_file(page, rmap_one, arg);
+						vma_interval_tree_foreach(vma, &mapping->i_mmap, pgoff, pgoff)
+							address = vma_address(page, vma); rmap_one(page, vma, address, arg);
+```
+
+### 7.3 页面回收
+页面回收、或者回收页面也即page reclaim，依赖于LRU链表对页面进行分类：不活跃匿名页面、活跃匿名页面、不活跃文件缓存页面、活跃文件缓存页面和不可回收页面。内存紧张时优先换出文件缓存页面，然后才是匿名页面。因为文件缓存页面有后备存储器，而匿名页面必须要写入交换分区。
+
+所以回收页面的三种机制: (1)对未修改的文件缓存页面可以直接丢弃，(2)对被修改的文件缓存页面需要会写到存储设备中，(3)很少使用的匿名页面交换到swap分区，以便释放出物理内存，这个机制称为页交换(swapping)  **不需要关心匿名页面的回收，因为嵌入式系统中不会有交换分区**
+
+```cpp
+--> #define LRU_BASE 0
+--> #define LRU_ACTIVE 1
+--> #define LRU_FILE 2
+enum lru_list {
+	LRU_INACTIVE_ANON = LRU_BASE,	LRU_ACTIVE_ANON = LRU_BASE + LRU_ACTIVE,
+	LRU_INACTIVE_FILE = LRU_BASE + LRU_FILE,	LRU_ACTIVE_FILE = LRU_BASE + LRU_FILE + LRU_ACTIVE,
+	LRU_UNEVICTABLE, 	NR_LRU_LISTS
+};
+struct pagevec {
+	unsigned long nr, cold;
+	struct page *pages[PAGEVEC_SIZE]; //最多14个pages　//#define PAGEVEC_SIZE	14
+};
+struct zone_reclaim_stat {
+	unsigned long		recent_rotated[2], recent_scanned[2];
+};
+struct lruvec {
+	struct list_head lists[NR_LRU_LISTS];
+	struct zone_reclaim_stat reclaim_stat;
+};
+struct zone {
+	...;
+	spinlock_t		lru_lock;
+	struct lruvec		lruvec;
+	...;
+};
+//为每个cpu定义一个5个元素的结构数组，每个结构中管理最多14个page
+static DEFINE_PER_CPU(struct pagevec[NR_LRU_LISTS], lru_add_pvecs);
+static DEFINE_PER_CPU(struct pagevec, lru_rotate_pvecs);
+static DEFINE_PER_CPU(struct pagevec, lru_deactivate_pvecs);
+
+void mark_page_accessed(struct page *page)
+
+int page_referenced_one(struct page *page, struct vm_area_struct *vma, address, *mapcount, *vm_flags)
+	pte = page_check_address(page, mm, address, &ptl, 0); referenced = 0; //获取page在vma中对应的pte页表项
+	if (ptep_clear_flush_young_notify(vma, address, pte)) referenced = 1;//检查pte确定Page最近是否被访问过
+	(*mapcount)--; if (referenced)	*vm_flags |= vma->vm_flags; return referenced;//返回这个page在所有引用中总共被访问的次数
+
+enum page_references page_check_references(struct page *page, struct scan_control *sc)
+	|--> referenced_ptes = page_referenced(page, 1, sc->target_mem_cgroup, &vm_flags);
+		if (!(page_mapped(page) && page_rmapping(page))) return 0; //如果page没有被mapping,那么当然没有被访问过
+		|--> if (PageAnon(page)) referenced += page_referenced_anon(page, memcg, vm_flags); //
+			|--> anon_vma = page_lock_anon_vma_read(page);//从page获取对应的anon_vma
+  			anon_mapping = (unsigned long) ACCESS_ONCE(page->mapping);
+				return (anon_vma = (struct anon_vma *) (anon_mapping - PAGE_MAPPING_ANON));
+			anon_vma_interval_tree_foreach(avc, &anon_vma->rb_root, pgoff, pgoff)
+				address = vma_address(page, avc->vma);
+				referenced += page_referenced_one(page, vma, address, &mapcount, vm_flags);
+		|--> if (page->mapping) referenced += page_referenced_file(page, memcg, vm_flags);
+			struct address_space *mapping = page->mapping; pgoff = page->index << (PAGE_CACHE_SHIFT - PAGE_SHIFT);
+			vma_interval_tree_foreach(vma, &mapping->i_mmap, pgoff, pgoff)
+				address = vma_address(page, vma);	referenced += page_referenced_one(page, vma, address, &mapcount, vm_flags);
+		if (page_test_and_clear_young(page_to_pfn(page))) referenced++;
+		return referenced;
+	if (!referenced_ptes || (vm_flags & VM_LOCKED)) return PAGEREF_RECLAIM; //
+	if (referenced_page && !PageSwapBacked(page))	return PAGEREF_RECLAIM_CLEAN;
+	referenced_page = TestClearPageReferenced(page);
+	if (PageSwapBacked(page))	return PAGEREF_ACTIVATE;
+	SetPageReferenced(page);
+	if (referenced_page || referenced_ptes > 1)	return PAGEREF_ACTIVATE;
+	if (vm_flags & VM_EXEC) return PAGEREF_ACTIVATE;
+	return PAGEREF_KEEP;
+
+//void lru_cache_add_anon(struct page *page) //-->__lru_cache_add(page, LRU_INACTIVE_ANON);
+//void lru_cache_add_file(struct page *page) //-->__lru_cache_add(page, LRU_INACTIVE_FILE);
+void lru_cache_add_lru(struct page *page, enum lru_list lru)
+	if (PageActive(page)) ClearPageActive(page);
+	else if (PageUnevictable(page)) ClearPageUnevictable(page);
+	|--> __lru_cache_add(page, lru);
+		struct pagevec *pvec = &get_cpu_var(lru_add_pvecs)[lru]; //获取当前cpu的pagevec结构
+		|--> if (!pagevec_space(pvec)) __pagevec_lru_add(pvec, lru); //如果结构中已经偶遇14个page，将所有的14个page添加进入zone的lruvec链表中
+			|--> pagevec_lru_move_fn(pvec, __pagevec_lru_add_fn, (void *)lru);
+  			for (i = 0; i < pagevec_count(pvec); i++)
+					struct page *page = pvec->pages[i]; zone = page_zone(page); lruvec = &zone->lruvec;
+					|--> (*move_fn))(page, lruvec, lru); //--__pagevec_lru_add_fn()
+						file = is_file_lru(lru); active = is_active_lru(lru);
+						SetPageLRU(page); if (active)	SetPageActive(page);
+						|--> add_page_to_lru_list(page, lruvec, lru);
+							list_add(&page->lru, &lruvec->lists[lru]);
+							__mod_zone_page_state(lruvec_zone(lruvec), NR_LRU_BASE + lru, nr_pages);
+						|--> update_page_reclaim_stat(lruvec, file, active);
+							reclaim_stat->recent_scanned[file]++;	if (active) reclaim_stat->recent_rotated[file]++;
+		pagevec_add(pvec, page);　//-->pvec->pages[pvec->nr++] = page; 添加一个page
+
+kswapd_init()---------------------------------------kswapd模块的初始化函数
+  kswapd_run()--------------------------------------创建内核线程kswapd
+    kswapd()----------------------------------------kswapd内核线程的执行函数
+      kswapd_try_to_sleep()-------------------------睡眠并且让出CPU，等待wakeup_kswapd()唤醒
+      balance_pgdat()-------------------------------回收页面的主函数，多zone
+        shrink_zone()-----------------------------扫描zone中所有可回收的页面
+          shrink_lruvec()-------------------------扫描LRU链表的核心函数
+            shrink_list()-------------------------处理各种LRU链表
+              shrink_active_list()----------------查看哪些活跃页面可以迁移到不活跃页面链表中
+              shrink_inactive_list()--------------扫描inactive LRU链表尝试回收页面，并且返回已经回收页面的数量
+								isolate_lru_pages()---------------从LRU链表中分离页面
+                shrink_page_list()----------------扫描page_list链表的页面并返回已回收的页面数量
+          shrink_slab()---------------------------调用内存管理系统中的shrinker接口来回收内存
+        check pgdat_balanced()----------------------判断内存节点是否处于平衡状态，即处于高水位
+        check zone_balanced()-----------------------判断内存节点中的zone是否处于平衡状态
+```
+
+### 7.4 反向映射
+
+```cpp
+void page_add_new_anon_rmap(struct page *page, struct vm_area_struct *vma, unsigned long address)
+	SetPageSwapBacked(page); //设置PG_SwapBacked表示这个页面可以swap到磁盘
+	atomic_set(&page->_mapcount, 0); //设置_mapcount引用计数为0
+  |--> __inc_zone_page_state(page, NR_ANON_PAGES);//--> __inc_zone_state(page_zone(page), item); 增加页面所在zone的匿名页面计数
+		atomic_long_inc(&zone->vm_stat[item]); atomic_long_inc(&vm_stat[item]);
+  |--> __page_set_anon_rmap(page, vma, address, 1);  //添加到rmap反向映射系统, 设置这个页面为匿名映射
+		if (PageAnon(page)) return; //判断当前页面是否是匿名页面PAGE_MAPPING_ANON
+		struct anon_vma *anon_vma = vma->anon_vma;  if (!exclusive)	anon_vma = anon_vma->root;
+		anon_vma = (void *) anon_vma + PAGE_MAPPING_ANON;
+		page->mapping = (struct address_space *) anon_vma; //mapping指定页面所在的地址空间，这里指向匿名页面的地址空间数据结构struct anon_vma
+		page->index = linear_page_index(vma, address);
+	lru_cache_add_lru(page, LRU_ACTIVE_ANON); //添加到活跃LRU链表中
+
+
+```
+
+### 7.5 start_kernel()前的启动过程
+
+可以参考下面文档:	http://www.wowotech.net/armv8a_arch/arm64_initialize_1.html
+
+KERNEL_RAM_VADDR --  0xC0008000  -- 内核在内存中的虚拟地址
+PAGE_OFFSET 		 --  0xC0000000  -- 内核虚拟地址空间的起始地址
+TEXT_OFFSET 		 --  0x00008000  -- 内核起始位置相对于内存起始位置的偏移
+PHYS_OFFSET 		 --  0x40000000  -- 物理内存的起始地址
+
+页表将4GB的地址空间分成若干个1MB的段(section)，因此页表包含4096个页表项(section entry)。每个页表项是32bits(4 bytes)，因而页表占用4096*4=16k的内存空间。下面的代码是将这16k的页表清0
+
+```cpp
+//head-common.S
+	__INIT
+__mmap_switched:
+	adr	r3, __mmap_switched_data
+
+	//好像是初始化数据区
+	ldmia	r3!, {r4, r5, r6, r7}
+	cmp	r4, r5				@ Copy data segment if needed
+1:	cmpne	r5, r6
+	ldrne	fp, [r4], #4
+	strne	fp, [r5], #4
+	bne	1b
+
+	//0初始化数据区
+	mov	fp, #0				@ Clear BSS (and zero fp)
+1:	cmp	r6, r7
+	strcc	fp, [r6],#4
+	bcc	1b
+
+ ARM(	ldmia	r3, {r4, r5, r6, r7, sp})
+	str	r9, [r4]			@ Save processor ID
+	str	r1, [r5]			@ Save machine type
+	str	r2, [r6]			@ Save atags pointer
+	cmp	r7, #0
+	bicne	r4, r0, #CR_A			@ Clear 'A' bit
+	stmneia	r7, {r0, r4}			@ Save control register values
+	b	start_kernel
+ENDPROC(__mmap_switched)
+
+	.align	2
+	.type	__mmap_switched_data, %object
+__mmap_switched_data:
+	.long	__data_loc			@ r4
+	.long	_sdata				@ r5
+	.long	__bss_start			@ r6
+	.long	_end				@ r7
+	.long	processor_id			@ r4
+	.long	__machine_arch_type		@ r5
+	.long	__atags_pointer			@ r6
+	.long	cr_alignment			@ r7
+	.long	init_thread_union + THREAD_START_SP @ sp
+	.size	__mmap_switched_data, . - __mmap_switched_data
+```
+
+```cpp
+//head.S
+	__HEAD
+ENTRY(stext) //整个程序的入口
+	safe_svcmode_maskall r9 		//进入svc模式，并mask掉所有中断
+						@======================================================
+						@.macro safe_svcmode_maskall reg:req
+						@    mrs    \reg , cpsr
+						@    eor    \reg, \reg, #HYP_MODE         @ mode==HYP_MODE? reg=0: reg=!0 (HYP_MODE=0x1a)
+						@    tst    \reg, #MODE_MASK              @ reg==0? Z=1: Z=0 (MODE_MASK=0x1f)
+						@    bic    \reg , \reg , #MODE_MASK      @ 清除模式位r9[4:0]
+						@    orr    \reg , \reg , #PSR_I_BIT | PSR_F_BIT | SVC_MODE        @ 关闭IRQ，FIQ，处理器设为SVC_MODE
+						@ THUMB(    orr    \reg , \reg , #PSR_T_BIT    )                   @ 如果支持Thumb指令，设置T位
+						@    bne    1f                            @ 大多cpu上电后非HYP_MODE，所以一般都是在这里进行跳转
+						@    orr    \reg, \reg, #PSR_A_BIT        @ 以下几行代码有待解析，暂时用不到
+						@    adr    lr, BSYM(2f)
+						@    msr    spsr_cxsf, \reg
+						@    __MSR_ELR_HYP(14)
+						@    __ERET
+						@1:    msr    cpsr_c, \reg                @ 把修改好的值写入cpsr_c(cpsr[7:0])
+						@2:
+						@.endm
+						@======================================================
+	mrc	p15, 0, r9, c0, c0		@ get processor id
+	bl	__lookup_processor_type		@ r5=procinfo r9=cpuid
+						@======================================================
+						@__lookup_processor_type:         @ 注意:(phys)表示是物理地址, (virt)表示线性地址
+						@    adr    r3, __lookup_processor_type_data        @ r3=(phys)__lookup_processor_type_data
+						@    ldmia    r3, {r4 - r6}       @ r4=(virt). r5=(virt)__proc_info_begin r6=(virt)__proc_info_end
+						@    sub    r3, r3, r4            @ r3=(phys)r3-(virt)r4 (接下来两行把virt转换成phys的时候使用)
+						@    add    r5, r5, r3            @ (phys)r5=(virt)r5+r3
+						@    add    r6, r6, r3            @ (phys)r6=(virt)r6+r3
+						@1:    ldmia    r5, {r3, r4}      @ r3=value r4=mask (参考struct proc_info_list)
+						@    and    r4, r4, r9            @ 对processor id进行mask
+						@    teq    r3, r4                @ 把mask后的processor id与value进行比较
+						@    beq    2f                    @ 如果一致，匹配成功，如果不匹配继续搜索(请参考proc-*.S)
+						@    add    r5, r5, #PROC_INFO_SZ        @ r5往后偏移sizeof(struct proc_info_list)
+						@    cmp    r5, r6                @ r6是存放proc_info_list的末尾
+						@    blo    1b
+						@    mov    r5, #0                @ 如果没有匹配成功结果是unknown processor(r5=0)
+						@2:    mov    pc, lr              @ 正常情况都能匹配到，并返回找到的procinfo的首地址
+						@ENDPROC(__lookup_processor_type)
+						@
+						@    .align    2
+						@    .type    __lookup_processor_type_data, %object
+						@__lookup_processor_type_data:
+						@    .long    .                   @ r4
+						@    .long    __proc_info_begin   @ r5
+						@    .long    __proc_info_end     @ r6
+						@    .size    __lookup_processor_type_data, . - __lookup_processor_type_data
+						@======================================================
+	movs	r10, r5				@ invalid processor (r5=0)?
+	beq	__error_p			@ yes, error 'p'
+	ldr	r8, =PHYS_OFFSET		@ always constant in this case
+	bl	__vet_atags    //校验tags信息
+						@======================================================
+						@__vet_atags:
+						@    tst    r2, #0x3            @ 检查是否4个字节对齐
+						@    bne    1f                  @ 如果不对齐跳转至下一个1: 出错返回
+						@    ldr    r5, [r2, #0]        @ 从atags所在的内存中读取4个字节到r5中
+						@    cmp    r5, #ATAG_CORE_SIZE               @ r5和5比较 (bootloader会把ATAG_CORE放在最前面)
+						@    cmpne    r5, #ATAG_CORE_SIZE_EMPTY       @ r5和2比较
+						@    bne    1f                                @ 以上两个条件都不满足，跳转至下一个1: 出错返回
+						@    ldr    r5, [r2, #4]          @ 读取下4个字节到r5中
+						@    ldr    r6, =ATAG_CORE        @ r6=0x54410001
+						@    cmp    r5, r6                @ 比较r5和r6
+						@    bne    1f                    @ 如果不等于，跳转至下一个1:出错返回
+						@2:    mov    pc, lr              @ 成功返回
+						@1:    mov    r2, #0
+						@    mov    pc, lr                @ 出错返回
+						@ENDPROC(__vet_atags)
+						@======================================================
+	bl	__create_page_tables
+	ldr	r13, =__mmap_switched		@ address to jump to after, mmu has been enabled
+	adr	lr, BSYM(1f)			@ return (PIC) address
+	mov	r8, r4				@ set TTBR1 to swapper_pg_dir
+ 	ARM(	add	pc, r10, #PROCINFO_INITFUNC	)
+	1:	b	__enable_mmu
+ENDPROC(stext)
+	.ltorg
+
+__enable_mmu:
+	bic	r0, r0, #CR_A
+	mov	r5, #(domain_val(DOMAIN_USER, DOMAIN_MANAGER) | domain_val(DOMAIN_KERNEL, DOMAIN_MANAGER) | \
+		      domain_val(DOMAIN_TABLE, DOMAIN_MANAGER) | domain_val(DOMAIN_IO, DOMAIN_CLIENT))
+	mcr	p15, 0, r5, c3, c0, 0		@ load domain access register
+	mcr	p15, 0, r4, c2, c0, 0		@ load page table pointer
+	b	__turn_mmu_on
+						@======================================================
+						@		.align	5
+						@		.pushsection	.idmap.text, "ax"
+						@	ENTRY(__turn_mmu_on)
+						@		mov	r0, r0
+						@		instr_sync
+						@		mcr	p15, 0, r0, c1, c0, 0		@ write control reg
+						@		mrc	p15, 0, r3, c0, c0, 0		@ read id reg
+						@		instr_sync
+						@		mov	r3, r3
+						@		mov	r3, r13
+						@		mov	pc, r3 					//这里实际将会跳转到__mmap_switched
+						@	 __turn_mmu_on_end:
+						@ ENDPROC(__turn_mmu_on)
+						@======================================================
+ENDPROC(__enable_mmu)
+
+__create_page_tables: //填充内核页表
+	pgtbl	r4, r8				@ page table address
+						@======================================================
+						@    .globl	swapper_pg_dir
+						@		 .equ	swapper_pg_dir, KERNEL_RAM_VADDR - PG_DIR_SIZE
+						@    .macro    pgtbl, rd, phys
+						@    add	\rd, \phys, #TEXT_OFFSET - PG_DIR_SIZE
+						@            @ TEXT_OFFSET:=$(textofs-y) (在arch/arm/Makefile定义，而又textofs-y:=0x00008000)
+						@            @ 所以 r4=0x40000000+0x00008000-0x4000=0x40004000
+						@    .endm
+						@======================================================
+	/* Clear the swapper page table */
+	mov	r0, r4								@ r0=页目录表头部的物理地址 (0x40004000)
+	mov	r3, #0
+	add	r6, r0, #PG_DIR_SIZE  @ r6=页目录表尾部的物理地址 (0x40008000)
+1:	str	r3, [r0], #4				@ 把0x40004000~0x40008000的所有内容清零
+	str	r3, [r0], #4
+	str	r3, [r0], #4
+	str	r3, [r0], #4
+	teq	r0, r6
+	bne	1b
+
+	ldr	r7, [r10, #PROCINFO_MM_MMUFLAGS]    @ r7=mm_mmuflags(参考struct proc_info_list中的__cpu_mm_mmu_flags，proc-*.S中填充的)
+	adr	r0, __turn_mmu_on_loc  							@ r0=(phys)__turn_mmu_on_loc
+						@======================================================
+						@	__turn_mmu_on_loc:
+						@		.long	.
+						@		.long	__turn_mmu_on
+						@		.long	__turn_mmu_on_end
+						@======================================================
+	ldmia	r0, {r3, r5, r6}
+	sub	r0, r0, r3			@ virt->phys offset     好像是计算虚拟地址和物理地址之间的差
+	add	r5, r5, r0			@ phys __turn_mmu_on
+	add	r6, r6, r0			@ phys __turn_mmu_on_end
+	mov	r5, r5, lsr #SECTION_SHIFT					@ r5=r5>>20(ex: 0xc0008060>>20=0xc00)
+	mov	r6, r6, lsr #SECTION_SHIFT
+
+1:	orr	r3, r7, r5, lsl #SECTION_SHIFT	@ flags + kernel base
+	str	r3, [r4, r5, lsl #PMD_ORDER]	@ identity mapping
+	cmp	r5, r6
+	addlo	r5, r5, #1			@ next section
+	blo	1b
+
+	/* Map our RAM from the start to the end of the kernel .bss section. */
+	add	r0, r4, #PAGE_OFFSET >> (SECTION_SHIFT - PMD_ORDER)
+	ldr	r6, =(_end - 1)
+	orr	r3, r8, r7
+	add	r6, r4, r6, lsr #(SECTION_SHIFT - PMD_ORDER)
+1:	str	r3, [r0], #1 << PMD_ORDER
+	add	r3, r3, #1 << SECTION_SHIFT
+	cmp	r0, r6
+	bls	1b
+
+	/* Then map boot params address in r2 if specified. We map 2 sections in case the ATAGs/DTB crosses a section boundary. */
+	mov	r0, r2, lsr #SECTION_SHIFT
+	movs	r0, r0, lsl #SECTION_SHIFT
+	subne	r3, r0, r8
+	addne	r3, r3, #PAGE_OFFSET
+	addne	r3, r4, r3, lsr #(SECTION_SHIFT - PMD_ORDER)
+	orrne	r6, r7, r0
+	strne	r6, [r3], #1 << PMD_ORDER						@ 进行1MB映射0xc0000000->0x40000000
+	addne	r6, r6, #1 << SECTION_SHIFT
+	strne	r6, [r3]														@ 进行1MB映射0xc0010000->0x40010000
+	mov	pc, lr
+ENDPROC(__create_page_tables)
+
+```
+
+**SMP使能时候第二CPU流程**
+```cpp
+secondary_start_kernel() --> cpu_startup_entry(CPUHP_ONLINE) --> cpu_idle_loop() 进入idle
+
+	__CPUINIT
+ENTRY(secondary_startup)
+	safe_svcmode_maskall r9
+	mrc	p15, 0, r9, c0, c0		@ get processor id
+	bl	__lookup_processor_type
+	movs	r10, r5				@ invalid processor?
+	moveq	r0, #'p'			@ yes, error 'p'
+ 	beq	__error_p
+
+	adr	r4, __secondary_data @
+						@======================================================
+						@				.type	__secondary_data, %object
+						@		__secondary_data:
+						@			.long	.
+						@			.long	secondary_data
+						@			.long	__secondary_switched
+						@======================================================
+	ldmia	r4, {r5, r7, r12}		@ address to jump to after
+	sub	lr, r4, r5			@ mmu has been enabled
+	ldr	r4, [r7, lr]			@ get secondary_data.pgdir
+	add	r7, r7, #4
+	ldr	r8, [r7, lr]			@ get secondary_data.swapper_pg_dir
+	adr	lr, BSYM(__enable_mmu)		@ return address
+	mov	r13, r12			@ __secondary_switched address
+	ARM(	add	pc, r10, #PROCINFO_INITFUNC	) @ initialise processor (return control reg)
+						@======================================================
+						@		ENTRY(__secondary_switched)
+						@			ldr	sp, [r7, #4]			@ get secondary_data.stack
+						@			mov	fp, #0
+						@			b	secondary_start_kernel
+						@		ENDPROC(__secondary_switched)
+						@======================================================
+ENDPROC(secondary_startup)
+
+```
+
+### 7.6
