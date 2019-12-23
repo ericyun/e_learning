@@ -101,7 +101,7 @@ dd if=/dev/zero of=/dev/spiblock0 bs=1M count=1
 07.21 周5 jack.ye
 git rebase -i dev_qsdk
 git commit --amend -m "RM#NONE: add SD/MMC card speed test program"
-git branch new-feature dev_qsdk  基于dev_qsdk建立新的branch开发新功能
+git branch new-feature dev_qsdk 基于dev_qsdk建立新的branch开发新功能
 新的branch上,可以自由的commit,不需要特别注意注释
 git branch merge-feature new-feature   开发完成后,基于建立新的merge用的branch
 git checkout merge-feature
@@ -204,7 +204,7 @@ device drvier   //pr_detect
 07.12 周3 解决#3941，开始跟踪#4496，
 初步分析卡顿原因：录像时采样率48000,每个帧1024个采样，所以每秒产生大概47个音频帧．但是播放时，统计发现每秒发送不到３０个音频帧到audiobox，这导致underrun，产生卡顿．所以应该是qplayer帧控制产生的问题．
 继续跟踪代码．
-定时关机　shutdown -h +30
+定时关机　sudo shutdown -h +30
 --------------------------------------------------------------------------------
 07.11 周2
 修改burn.ixl，调整了几个image的顺序之后，调试uboot1就不需要强制先烧录kernel.
@@ -472,8 +472,6 @@ fat相关的改动, 在g_dev_qsdk目录.
 实现了一个测试模块, 实现top和htop的部分功能. 这样做的目的主要是:
 1. 自定义统计方式, 可以自己选定测试开始结束时间, 宏观分析更方便;
 2. 实现33ms(ISP中断)级别的资源统计, 尝试为系统优化和分析提供一些微观的视角.
-3.
-
 
 应该是总结出一种方法或一个工具, 能够对系统CPU资源动态变化情况提供一个量化的衡量标准, 然后我们才可能评估当前系统是否存在明显问题, 是否能对其进行优化.
 具体的来讲, 对系统调度分析的问题, 分成几个阶段进行. 第一阶段,

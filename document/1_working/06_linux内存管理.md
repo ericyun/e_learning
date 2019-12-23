@@ -1913,7 +1913,7 @@ void page_add_new_anon_rmap(struct page *page, struct vm_area_struct *vma, unsig
 
 ```
 
-### 7.5 start_kernel()前的启动过程
+### 7.5 start_kernel()之前的启动过程
 
 可以参考下面文档:	http://www.wowotech.net/armv8a_arch/arm64_initialize_1.html
 
@@ -2181,5 +2181,3 @@ ENTRY(secondary_startup)
 ENDPROC(secondary_startup)
 
 ```
-
-### 7.6
