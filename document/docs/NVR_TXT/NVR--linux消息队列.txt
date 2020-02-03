@@ -14,19 +14,13 @@ MMB LEAK(pid=4026): 0x67881000, 65536 bytes, 'AO(1,1) CirBuf'
 Posix和System V
 对Unix发展做出重大贡献的两大主力AT&T的贝尔实验室及BSD（加州大学伯克利分校的伯克利软件发布中心）在进程间通信方面的侧重点有所不同。前者对Unix早期的进程间通信手段进行了系统的改进和扩充，形成了“system V IPC”，通信进程局限在单个计算机内；后者则跳过了该限制，形成了基于套接口（socket）的进程间通信机制。
 
-Posix 是 RMS 倡导的，正在流行。
-System V 是正宗的 UNIX V，可是，早挂了，后来的 SunOS 和 SCO 是继承。
+Posix 是 RMS 倡导的，正在流行; System V 是正宗的 UNIX V，可是，早挂了，后来的 SunOS 和 SCO 是继承。
 
 POSIX是IEEE为要在各种UNIX操作系统上运行的软件，而定义API的一系列互相关联的标准的总称，其正式称呼为IEEE 1003，而国际标准名称为ISO／IEC 9945。此标准源于一个大约开始于1985年的项目。POSIX这个名称是由理查德·斯托曼应IEEE的要求而提议的一个易于记忆的名称。它基本上是Portable Operating System Interface（可移植操作系统界面）的缩写，而X则表明其对Unix API的传承。
 
-Linux基本上逐步实现了POSIX兼容，但并没有参加正式的POSIX认证。
-
-微软的Windows NT至少部分实现了POSIX兼容。
+Linux基本上逐步实现了POSIX兼容，但并没有参加正式的POSIX认证。微软的Windows NT至少部分实现了POSIX兼容。
 
 当前的POSIX文档分为三个部分：POSIX Kernel API，POSIX命令和工具集，及POSIX一致性测试
-
-System V消息队列
-
 
 POSIX消息队列
 
